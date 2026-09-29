@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Register — Wealth Matrix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#E9EDF1;
+    --surface:#FFFFFF;
+    --ink:#10213A;
+    --ink-soft:#4C5A6E;
+    --line:#D7DCE3;
+    --gold:#B8863B;
+    --gold-ink:#5C430F;
+    --green:#2F6F4E;
+    --red:#B0402F;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:40px 16px 64px;
+    line-height:1.5;
+  }
+  .card{
+    width:100%;
+    max-width:440px;
+    background:var(--surface);
+    border-radius:var(--radius);
+    border:1px solid var(--line);
+    box-shadow:0 1px 2px rgba(16,33,58,.04), 0 12px 32px -16px rgba(16,33,58,.18);
+    overflow:hidden;
+  }
+  .card-top{ padding:32px 28px 24px; }
+  .wordmark{
+    font-size:.8rem;
+    font-weight:500;
+    color:var(--ink-soft);
+    margin:0 0 18px;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:1.7rem;
+    line-height:1.22;
+    margin:0 0 18px;
+    letter-spacing:-.01em;
+  }
+  .meta{
+    border-top:1px solid var(--line);
+    padding-top:16px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .meta-row{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    font-size:.94rem;
+    color:var(--ink-soft);
+  }
+  .meta-row svg{ flex:none; margin-top:2px; }
+  .meta-row strong{ color:var(--ink); font-weight:500; }
+  .description{
+    margin:14px 0 0;
+    font-size:.9rem;
+    color:var(--ink-soft);
+    line-height:1.55;
+    white-space:pre-line;
+  }
+
+  .card-bottom{ padding:6px 28px 32px; }
+  .form-label{
+    display:block;
+    font-size:.86rem;
+    color:var(--ink-soft);
+    margin:16px 0 6px;
+  }
+  .field{
+    width:100%;
+    padding:11px 13px;
+    border:1px solid var(--line);
+    border-radius:9px;
+    font-size:.97rem;
+    font-family:inherit;
+    color:var(--ink);
+    background:var(--surface);
+  }
+  .field:focus{
+    outline:2px solid var(--gold);
+    outline-offset:1px;
+    border-color:var(--gold);
+  }
+  .row-2{ display:flex; gap:10px; }
+  .row-2 > *{ flex:1; min-width:0; }
+
+  button.submit{
+    width:100%;
+    margin-top:24px;
+    padding:13px 16px;
+    border:none;
+    border-radius:9px;
+    background:var(--ink);
+    color:#fff;
+    font-family:inherit;
+    font-size:.98rem;
+    font-weight:600;
+    cursor:pointer;
+  }
+  button.submit:disabled{ opacity:.55; cursor:default; }
+  button.submit:hover:not(:disabled){ background:#183050; }
+
+  .error-msg{
+    margin-top:12px;
+    font-size:.87rem;
+    color:var(--red);
+    display:none;
+  }
+
+  /* success state */
+  .success{ display:none; padding:32px 28px 34px; text-align:left; }
+  .success .tick{
+    width:44px; height:44px; border-radius:50%;
+    background:#E7F1EB; color:var(--green);
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:16px;
+  }
+  .success h2{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:1.4rem;
+    margin:0 0 8px;
+  }
+  .success p{ color:var(--ink-soft); font-size:.94rem; margin:0 0 20px; }
+  .cal-buttons{ display:flex; flex-wrap:wrap; gap:10px; }
+  .cal-btn{
+    flex:1;
+    min-width:170px;
+    text-align:center;
+    padding:11px 14px;
+    border-radius:9px;
+    text-decoration:none;
+    font-size:.9rem;
+    font-weight:500;
+  }
+  .cal-btn.primary{ background:var(--ink); color:#fff; }
+  .cal-btn.secondary{ border:1px solid var(--line); color:var(--ink); }
+  .cal-btn.join{ display:block; width:100%; background:var(--gold); color:var(--ink); font-weight:600; margin-bottom:10px; }
+  .reminder-note{ margin-top:22px; font-size:.87rem; color:var(--ink-soft); }
+
+  /* invalid-link state */
+  .invalid{ display:none; padding:48px 28px; text-align:center; }
+  .invalid p{ color:var(--ink-soft); font-size:.95rem; }
+
+  .loading{ padding:48px 28px; text-align:center; color:var(--ink-soft); font-size:.92rem; }
+
+  footer{
+    text-align:center;
+    font-size:.78rem;
+    color:var(--ink-soft);
+    margin-top:22px;
+  }
+</style>
+</head>
+<body>
+
+<div style="width:100%;max-width:440px;">
+  <div class="card">
+
+    <div id="loadingState" class="loading">Loading event details…</div>
+
+    <div id="invalidState" class="invalid">
+      <h1 style="font-size:1.3rem;">This link isn't valid</h1>
+      <p>The registration link you followed may be out of date. Please check with the sender for the current link.</p>
+    </div>
+
+    <form id="regForm" style="display:none;">
+      <div class="card-top">
+        <p class="wordmark" id="firmName"></p>
+        <h1 id="topicHeadline"></h1>
+        <div class="meta">
+          <div class="meta-row">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+            <span><strong id="dateDisplay"></strong></span>
+          </div>
+          <div class="meta-row">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4"/></svg>
+            <span>Conducted by <strong id="conductedBy"></strong></span>
+          </div>
+        </div>
+        <p class="description" id="eventDescription" style="display:none;"></p>
+      </div>
+
+      <div class="card-bottom">
+        <label class="form-label" for="name">Full name</label>
+        <input class="field" id="name" required autocomplete="name">
+
+        <label class="form-label" for="email">Email address</label>
+        <input class="field" id="email" type="email" required autocomplete="email">
+
+        <div class="row-2">
+          <div>
+            <label class="form-label" for="country">Country</label>
+            <select class="field" id="country">
+              <option>UAE</option><option>Saudi Arabia</option><option>Qatar</option>
+              <option>Kuwait</option><option>Oman</option><option>Bahrain</option>
+              <option>India</option><option>USA</option><option>UK</option>
+              <option>Canada</option><option>Australia</option><option>Singapore</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="mobile">Mobile number</label>
+            <input class="field" id="mobile" required autocomplete="tel" placeholder="+971 5x xxx xxxx">
+          </div>
+        </div>
+
+        <button type="submit" class="submit" id="submitBtn">Reserve my seat</button>
+        <p class="error-msg" id="errorMsg"></p>
+      </div>
+    </form>
+
+    <div id="successState" class="success">
+      <div class="tick">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 12.5l5 5L20 6.5"/></svg>
+      </div>
+      <h2>You're registered</h2>
+      <p id="successCopy"></p>
+      <a class="cal-btn join" id="joinLink" target="_blank" rel="noopener" style="display:none;">Join the webinar</a>
+      <div class="cal-buttons">
+        <a class="cal-btn primary" id="gcalLink" target="_blank" rel="noopener">Add to Google Calendar</a>
+        <a class="cal-btn secondary" id="icsLink" target="_blank" rel="noopener">Add to Apple / Outlook</a>
+      </div>
+      <p class="reminder-note">We shall remind you in due course.</p>
+    </div>
+
+  </div>
+  <footer>Wealth Matrix</footer>
+</div>
+
+<script src="config.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const eventId = params.get('id');
+
+  let currentEvent = null;
+
+  const RECAPTCHA_ENABLED = typeof RECAPTCHA_SITE_KEY === 'string' && RECAPTCHA_SITE_KEY.length > 0;
+  if (RECAPTCHA_ENABLED) {
+    const s = document.createElement('script');
+    s.src = 'https://www.google.com/recaptcha/api.js?render=' + RECAPTCHA_SITE_KEY;
+    document.head.appendChild(s);
+  }
+  function getRecaptchaToken(){
+    if (!RECAPTCHA_ENABLED) return Promise.resolve('');
+    return new Promise(function(resolve){
+      grecaptcha.ready(function(){
+        grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'register' }).then(resolve).catch(function(){ resolve(''); });
+      });
+    });
+  }
+
+  function show(el){ el.style.display = el.dataset.flex ? 'flex' : 'block'; }
+  function hide(el){ el.style.display = 'none'; }
+
+  async function loadEvent(){
+    if (!eventId) { hide($('loadingState')); show($('invalidState')); return; }
+    try {
+      const res = await fetch(WEB_APP_URL + '?action=getEvent&id=' + encodeURIComponent(eventId));
+      const data = await res.json();
+      if (data.error) { hide($('loadingState')); show($('invalidState')); return; }
+      currentEvent = data;
+      $('firmName').textContent = FIRM_NAME;
+      $('topicHeadline').textContent = data.topic;
+      $('dateDisplay').textContent = data.dateDisplay;
+      $('conductedBy').textContent = data.conductedBy;
+      if (data.description) {
+        $('eventDescription').textContent = data.description;
+        $('eventDescription').style.display = 'block';
+      }
+      document.title = data.topic + ' — ' + FIRM_NAME;
+      hide($('loadingState'));
+      $('regForm').style.display = 'block';
+    } catch (err) {
+      hide($('loadingState'));
+      show($('invalidState'));
+    }
+  }
+
+  $('regForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const btn = $('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Registering…';
+    $('errorMsg').style.display = 'none';
+
+    const payload = {
+      action: 'register',
+      id: eventId,
+      name: $('name').value.trim(),
+      email: $('email').value.trim(),
+      mobile: $('mobile').value.trim(),
+      country: $('country').value,
+      recaptchaToken: await getRecaptchaToken()
+    };
+
+    try {
+      const res = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      $('regForm').style.display = 'none';
+      $('successCopy').textContent = "We've emailed the details to " + payload.email + '.';
+      $('gcalLink').href = data.googleCalendarLink;
+      $('icsLink').href = data.icsUrl;
+      if (data.event && data.event.meetingLink) {
+        $('joinLink').href = data.event.meetingLink;
+        $('joinLink').style.display = 'block';
+      }
+      $('successState').style.display = 'block';
+    } catch (err) {
+      $('errorMsg').textContent = err.message || 'Something went wrong. Please try again.';
+      $('errorMsg').style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Reserve my seat';
+    }
+  });
+
+  loadEvent();
+</script>
+</body>
+</html>

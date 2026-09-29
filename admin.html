@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Webinars — Wealth Matrix</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#10213A">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#E9EDF1;
+    --surface:#FFFFFF;
+    --ink:#10213A;
+    --ink-soft:#4C5A6E;
+    --line:#D7DCE3;
+    --gold:#B8863B;
+    --green:#2F6F4E;
+    --red:#B0402F;
+    --wa:#2E9E5B;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    line-height:1.45;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  button{ font-family:inherit; }
+  .hidden{ display:none !important; }
+
+  /* ── Passcode gate ───────────────────────────── */
+  #gate{
+    min-height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  .gate-card{
+    width:100%; max-width:340px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:28px 24px;
+    text-align:center;
+  }
+  .gate-card h1{
+    font-family:'Fraunces',serif; font-weight:600; font-size:1.3rem; margin:0 0 6px;
+  }
+  .gate-card p{ color:var(--ink-soft); font-size:.88rem; margin:0 0 18px; }
+  .gate-card input{
+    width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:9px;
+    font-size:1rem; text-align:center; letter-spacing:.05em;
+  }
+  .gate-card button{
+    width:100%; margin-top:14px; padding:11px; border:none; border-radius:9px;
+    background:var(--ink); color:#fff; font-weight:600; font-size:.95rem; cursor:pointer;
+  }
+  .gate-error{ color:var(--red); font-size:.85rem; margin-top:10px; display:none; }
+
+  /* ── App shell ───────────────────────────────── */
+  #app{ max-width:560px; margin:0 auto; padding:0 16px 100px; }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 2px 16px;
+  }
+  .topbar h1{
+    font-family:'Fraunces',serif; font-weight:600; font-size:1.5rem; margin:0;
+  }
+  .topbar .sub{ color:var(--ink-soft); font-size:.85rem; margin-top:2px; }
+  .icon-btn{
+    border:1px solid var(--line); background:var(--surface); border-radius:10px;
+    width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; color:var(--ink-soft);
+  }
+  .icon-btn:hover{ color:var(--ink); }
+
+  /* event capsule list */
+  #eventList{ display:flex; flex-direction:column; gap:10px; }
+  .capsule{
+    display:flex; align-items:center; gap:12px;
+    background:var(--surface); border:1px solid var(--line); border-radius:16px;
+    padding:14px 14px; cursor:pointer;
+    box-shadow:0 1px 2px rgba(16,33,58,.03), 0 8px 20px -14px rgba(16,33,58,.25);
+  }
+  .capsule .body{ flex:1; min-width:0; }
+  .capsule .topic{
+    font-weight:600; font-size:.98rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .capsule .when{ color:var(--ink-soft); font-size:.83rem; margin-top:3px; }
+  .capsule .count{
+    flex:none; font-size:.78rem; color:var(--ink-soft);
+    border:1px solid var(--line); border-radius:999px; padding:4px 10px; white-space:nowrap;
+  }
+  .capsule .copy-btn{
+    flex:none; width:32px; height:32px; border-radius:9px; border:none; background:transparent;
+    color:var(--ink-soft); display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .capsule .copy-btn:hover{ background:var(--paper); color:var(--ink); }
+
+  .empty-state{ text-align:center; padding:60px 20px; color:var(--ink-soft); }
+  .empty-state svg{ margin-bottom:12px; opacity:.5; }
+  .empty-state p{ font-size:.92rem; margin:0; }
+
+  /* FAB */
+  .fab{
+    position:fixed; right:20px; bottom:calc(24px + env(safe-area-inset-bottom,0px));
+    width:56px; height:56px; border-radius:50%;
+    background:var(--gold); color:var(--ink); border:none;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 10px 24px -8px rgba(184,134,59,.6);
+    cursor:pointer;
+  }
+
+  /* ── Detail view ─────────────────────────────── */
+  #detailView .back-row{ display:flex; align-items:center; gap:10px; padding:22px 2px 12px; }
+  #detailView .back-row button{ border:none; background:transparent; color:var(--ink-soft); cursor:pointer; padding:4px; display:flex; }
+  #detailView .back-row span{ font-size:.9rem; color:var(--ink-soft); }
+
+  .event-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:20px;
+  }
+  .event-card h2{ font-family:'Fraunces',serif; font-weight:600; font-size:1.25rem; margin:0 0 10px; }
+  .event-card .row{ display:flex; align-items:flex-start; gap:8px; font-size:.88rem; color:var(--ink-soft); margin-bottom:5px; }
+  .event-card .row svg{ flex:none; margin-top:2px; }
+  .event-card .actions{ display:flex; gap:10px; margin-top:16px; }
+  .ghost-btn{
+    border:1px solid var(--line); background:transparent; color:var(--ink);
+    border-radius:9px; padding:9px 13px; font-size:.85rem; cursor:pointer;
+    display:flex; align-items:center; gap:6px;
+  }
+  .ghost-btn:hover{ background:var(--paper); }
+
+  .section-label{ font-size:.85rem; color:var(--ink-soft); margin:22px 2px 10px; }
+
+  .attendee-row{
+    display:flex; align-items:center; gap:12px;
+    padding:12px 4px; border-bottom:1px solid var(--line);
+  }
+  .attendee-row .who{ flex:1; min-width:0; }
+  .attendee-row .name{ font-weight:600; font-size:.94rem; }
+  .attendee-row .sub{ font-size:.8rem; color:var(--ink-soft); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .attendee-row .actions{ flex:none; display:flex; gap:8px; }
+  .round-btn{
+    width:34px; height:34px; border-radius:50%; border:1px solid var(--line);
+    background:var(--surface); display:flex; align-items:center; justify-content:center;
+    text-decoration:none; color:var(--ink);
+  }
+  .round-btn.wa{ color:var(--wa); border-color:#cfe9db; }
+
+  /* ── Dashboard view ──────────────────────────── */
+  .stats{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
+  .stat-card{ flex:1; min-width:130px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  .stat-card .value{ font-family:'Fraunces',serif; font-weight:600; font-size:1.6rem; }
+  .stat-card .label{ color:var(--ink-soft); font-size:.8rem; margin-top:2px; }
+  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 18px 8px; margin-bottom:16px; }
+  .panel h2{ font-size:.9rem; font-weight:600; margin:0 0 14px; }
+  .chart-wrap{ position:relative; height:200px; }
+  .empty-note{ text-align:center; color:var(--ink-soft); font-size:.88rem; padding:36px 16px; }
+
+  /* ── Add-event bottom sheet ──────────────────── */
+  .overlay{
+    position:fixed; inset:0; background:rgba(16,33,58,.4); display:flex; align-items:flex-end; justify-content:center; z-index:20;
+  }
+  .sheet{
+    width:100%; max-width:480px; background:var(--surface);
+    border-radius:18px 18px 0 0; padding:20px 22px calc(22px + env(safe-area-inset-bottom,0px));
+    max-height:88vh; overflow-y:auto;
+  }
+  .sheet-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .sheet-head h3{ font-family:'Fraunces',serif; font-weight:600; font-size:1.15rem; margin:0; }
+  .sheet-head button{ border:none; background:transparent; color:var(--ink-soft); cursor:pointer; padding:4px; }
+  .form-label{ display:block; font-size:.85rem; color:var(--ink-soft); margin:14px 0 6px; }
+  .field{
+    width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:9px;
+    font-size:.96rem; font-family:inherit; color:var(--ink); background:var(--surface);
+  }
+  .field:focus{ outline:2px solid var(--gold); outline-offset:1px; border-color:var(--gold); }
+  textarea.field{ resize:vertical; min-height:70px; }
+  .primary-btn{
+    width:100%; margin-top:20px; padding:12px; border:none; border-radius:9px;
+    background:var(--ink); color:#fff; font-weight:600; font-size:.95rem; cursor:pointer;
+  }
+  .primary-btn:disabled{ opacity:.55; }
+  .sheet-error{ color:var(--red); font-size:.85rem; margin-top:8px; display:none; }
+
+  .share-panel .tick{
+    width:40px; height:40px; border-radius:50%; background:#E7F1EB; color:var(--green);
+    display:flex; align-items:center; justify-content:center; margin-bottom:12px;
+  }
+  .share-panel p{ font-size:.9rem; color:var(--ink-soft); margin:0 0 14px; }
+  .link-row{ display:flex; gap:8px; }
+  .link-row input{ flex:1; min-width:0; }
+  .link-row button{
+    flex:none; border:1px solid var(--line); background:var(--surface); border-radius:9px;
+    padding:0 14px; font-size:.85rem; cursor:pointer;
+  }
+  .wa-share{
+    margin-top:12px; width:100%; padding:11px; border-radius:9px; border:1px solid #cfe9db;
+    background:#F2FBF5; color:var(--wa); font-weight:600; font-size:.9rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+
+  /* toast */
+  #toast{
+    position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:10px 18px; border-radius:999px; font-size:.85rem;
+    opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:30;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- Passcode gate -->
+<div id="gate">
+  <div class="gate-card">
+    <h1>Webinars</h1>
+    <p>Enter your passcode to continue</p>
+    <input id="passInput" type="password" autocomplete="off" inputmode="text">
+    <button id="unlockBtn">Unlock</button>
+    <p class="gate-error" id="gateError">That passcode isn't right.</p>
+  </div>
+</div>
+
+<!-- Main app -->
+<div id="app" class="hidden">
+
+  <!-- List view -->
+  <div id="listView">
+    <div class="topbar">
+      <div>
+        <h1>Webinars</h1>
+        <div class="sub" id="listSub">Loading…</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="icon-btn" id="refreshBtn" title="Refresh">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v6h-6"/></svg>
+        </button>
+        <button class="icon-btn" id="dashboardBtn" title="Dashboard">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="eventList"></div>
+
+    <div id="emptyState" class="empty-state hidden">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      <p>No webinars yet. Tap + to add your first one.</p>
+    </div>
+  </div>
+
+  <!-- Detail view -->
+  <div id="detailView" class="hidden">
+    <div class="back-row">
+      <button id="backBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4l-8 8 8 8"/></svg>
+      </button>
+      <span>All webinars</span>
+    </div>
+
+    <div class="event-card">
+      <h2 id="dTopic"></h2>
+      <div class="row">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        <span id="dDate"></span>
+      </div>
+      <div class="row">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4"/></svg>
+        <span id="dConductedBy"></span>
+      </div>
+      <div class="row">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span id="dCount"></span>
+      </div>
+      <div class="row">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
+        <span id="dMeetingLink">No meeting link yet</span>
+      </div>
+      <p id="dDescription" style="display:none; font-size:.88rem; color:var(--ink-soft); margin:10px 0 0; line-height:1.5; white-space:pre-line;"></p>
+      <div class="actions">
+        <button class="ghost-btn" id="copyLinkBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.07 0l2-2a5 5 0 0 0-7.07-7.07l-1 1"/><path d="M14 11a5 5 0 0 0-7.07 0l-2 2a5 5 0 0 0 7.07 7.07l1-1"/></svg>
+          Copy link
+        </button>
+        <button class="ghost-btn" id="editEventBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          Edit
+        </button>
+      </div>
+    </div>
+
+    <div class="section-label" id="attendeesLabel">Registered</div>
+    <div id="attendeeList"></div>
+  </div>
+
+  <!-- Dashboard view -->
+  <div id="dashboardView" class="hidden">
+    <div class="back-row">
+      <button id="dashboardBackBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4l-8 8 8 8"/></svg>
+      </button>
+      <span>All webinars</span>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card"><div class="value" id="statWebinars">–</div><div class="label">Webinars</div></div>
+      <div class="stat-card"><div class="value" id="statRegistrations">–</div><div class="label">Registrations</div></div>
+      <div class="stat-card"><div class="value" id="statFeedback">–</div><div class="label">Feedback received</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Registrations by webinar</h2>
+      <div class="chart-wrap"><canvas id="webinarChart"></canvas></div>
+      <p class="empty-note hidden" id="webinarChartEmpty">No webinars yet.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Registrations by country</h2>
+      <div class="chart-wrap"><canvas id="countryChart"></canvas></div>
+      <p class="empty-note hidden" id="countryChartEmpty">No registrations yet.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Add event bottom sheet -->
+<div id="addOverlay" class="overlay hidden">
+  <div class="sheet">
+
+    <div id="addFormPanel">
+      <div class="sheet-head">
+        <h3 id="sheetTitle">New webinar</h3>
+        <button id="closeSheetBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <label class="form-label" for="newTopic">Topic</label>
+      <input class="field" id="newTopic" placeholder="e.g. GCC NRI Retirement">
+      <label class="form-label" for="newDate">Date &amp; time</label>
+      <input class="field" id="newDate" type="datetime-local">
+      <label class="form-label" for="newConductor">Conducted by</label>
+      <input class="field" id="newConductor" value="Arjun K T M">
+      <label class="form-label" for="newDescription">Description</label>
+      <textarea class="field" id="newDescription" rows="3" placeholder="What the webinar covers — shown to registrants"></textarea>
+      <div id="meetingLinkField">
+        <label class="form-label" for="newMeetingLink">Meeting link</label>
+        <input class="field" id="newMeetingLink" type="url" placeholder="https://meet.google.com/...">
+      </div>
+      <p id="meetingLinkNote" style="font-size:.82rem; color:var(--ink-soft); margin:14px 0 0;">A Google Meet link and calendar event are created automatically when you schedule this.</p>
+      <button class="primary-btn" id="createEventBtn">Schedule webinar</button>
+      <p class="sheet-error" id="createError"></p>
+    </div>
+
+    <div id="sharePanel" class="share-panel hidden">
+      <div class="tick">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 12.5l5 5L20 6.5"/></svg>
+      </div>
+      <h3 style="font-family:'Fraunces',serif; font-weight:600; margin:0 0 6px;">Webinar created</h3>
+      <p>Share this link so people can register.</p>
+      <div class="link-row">
+        <input class="field" id="shareLinkInput" readonly>
+        <button id="shareCopyBtn">Copy</button>
+      </div>
+      <button class="wa-share" id="shareWaBtn">Share on WhatsApp</button>
+      <button class="primary-btn" id="doneSheetBtn">Done</button>
+    </div>
+
+  </div>
+</div>
+
+<button class="fab" id="fabBtn" title="Schedule webinar">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const TOKEN_KEY = 'dp_webinar_admin_token';
+  let eventsCache = [];
+  let currentEventId = null;
+  let currentEventDetail = null;
+  let editingEventId = null;
+  let webinarChartInstance = null;
+  let countryChartInstance = null;
+  const CHART_PALETTE = ['#10213A', '#B8863B', '#4C5A6E', '#2F6F4E', '#8A6D3B', '#5C7A99', '#B0402F', '#7A8FA6'];
+
+  function toDatetimeLocalValue(d){
+    const pad = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  // ── Toast ──────────────────────────────────────
+  let toastTimer;
+  function toast(msg){
+    const el = $('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+  }
+  function copyText(text){
+    navigator.clipboard?.writeText(text).then(() => toast('Link copied')).catch(() => toast('Could not copy'));
+  }
+
+  // ── Passcode gate ──────────────────────────────
+  async function tryUnlock(token){
+    const res = await fetch(WEB_APP_URL + '?action=getEvents&token=' + encodeURIComponent(token));
+    const data = await res.json();
+    if (data.error) return false;
+    eventsCache = data.events;
+    return true;
+  }
+
+  $('unlockBtn').addEventListener('click', async () => {
+    const token = $('passInput').value.trim();
+    if (!token) return;
+    $('unlockBtn').textContent = 'Checking…';
+    const ok = await tryUnlock(token);
+    $('unlockBtn').textContent = 'Unlock';
+    if (ok) {
+      localStorage.setItem(TOKEN_KEY, token);
+      $('gate').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      renderEventList();
+    } else {
+      $('gateError').style.display = 'block';
+    }
+  });
+  $('passInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('unlockBtn').click(); });
+
+  async function boot(){
+    const saved = localStorage.getItem(TOKEN_KEY);
+    if (saved) {
+      const ok = await tryUnlock(saved);
+      if (ok) {
+        $('gate').classList.add('hidden');
+        $('app').classList.remove('hidden');
+        renderEventList();
+        return;
+      }
+      localStorage.removeItem(TOKEN_KEY);
+    }
+    $('gate').classList.remove('hidden');
+  }
+
+  function adminToken(){ return localStorage.getItem(TOKEN_KEY); }
+
+  // ── List view ──────────────────────────────────
+  async function loadEvents(){
+    const res = await fetch(WEB_APP_URL + '?action=getEvents&token=' + encodeURIComponent(adminToken()));
+    const data = await res.json();
+    if (data.error) { toast(data.error); return; }
+    eventsCache = data.events;
+  }
+
+  function shareUrl(id){
+    return location.origin + location.pathname.replace('admin.html', 'register.html') + '?id=' + encodeURIComponent(id);
+  }
+
+  function renderEventList(){
+    const list = $('eventList');
+    list.innerHTML = '';
+    $('listSub').textContent = eventsCache.length + (eventsCache.length === 1 ? ' webinar' : ' webinars');
+    $('emptyState').classList.toggle('hidden', eventsCache.length > 0);
+
+    eventsCache.forEach((ev) => {
+      const el = document.createElement('div');
+      el.className = 'capsule';
+      el.innerHTML =
+        '<div class="body">' +
+          '<div class="topic"></div>' +
+          '<div class="when"></div>' +
+        '</div>' +
+        '<div class="count"></div>' +
+        '<button class="copy-btn" title="Copy link">' +
+          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.07 0l2-2a5 5 0 0 0-7.07-7.07l-1 1"/><path d="M14 11a5 5 0 0 0-7.07 0l-2 2a5 5 0 0 0 7.07 7.07l1-1"/></svg>' +
+        '</button>';
+      el.querySelector('.topic').textContent = ev.topic;
+      el.querySelector('.when').textContent = ev.dateDisplay;
+      el.querySelector('.count').textContent = ev.registered + (ev.registered === 1 ? ' registered' : ' registered');
+      el.querySelector('.copy-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyText(shareUrl(ev.id));
+      });
+      el.addEventListener('click', () => openDetail(ev.id));
+      list.appendChild(el);
+    });
+  }
+
+  $('refreshBtn').addEventListener('click', async () => {
+    await loadEvents();
+    renderEventList();
+  });
+
+  // ── Detail view ────────────────────────────────
+  async function openDetail(id){
+    currentEventId = id;
+    $('listView').classList.add('hidden');
+    $('detailView').classList.remove('hidden');
+    $('attendeeList').innerHTML = '<p style="color:var(--ink-soft); font-size:.9rem; padding:8px 4px;">Loading…</p>';
+
+    const res = await fetch(WEB_APP_URL + '?action=getAttendees&token=' + encodeURIComponent(adminToken()) + '&id=' + encodeURIComponent(id));
+    const data = await res.json();
+    if (data.error) { toast(data.error); return; }
+
+    currentEventDetail = data.event;
+    $('dTopic').textContent = data.event.topic;
+    $('dDate').textContent = data.event.dateDisplay;
+    $('dConductedBy').textContent = 'Conducted by ' + data.event.conductedBy;
+    $('dCount').textContent = data.attendees.length + (data.attendees.length === 1 ? ' person registered' : ' people registered');
+    $('attendeesLabel').textContent = 'Registered (' + data.attendees.length + ')';
+
+    const linkEl = $('dMeetingLink');
+    if (data.event.meetingLink) {
+      linkEl.innerHTML = '';
+      const a = document.createElement('a');
+      a.href = data.event.meetingLink;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.style.color = 'inherit';
+      a.textContent = data.event.meetingLink.replace(/^https?:\/\//, '');
+      linkEl.appendChild(a);
+    } else {
+      linkEl.textContent = 'No meeting link yet';
+    }
+    if (data.event.description) {
+      $('dDescription').textContent = data.event.description;
+      $('dDescription').style.display = 'block';
+    } else {
+      $('dDescription').style.display = 'none';
+    }
+
+    const list = $('attendeeList');
+    list.innerHTML = '';
+    if (data.attendees.length === 0) {
+      list.innerHTML = '<p style="color:var(--ink-soft); font-size:.9rem; padding:8px 4px;">No one has registered yet.</p>';
+      return;
+    }
+    data.attendees.forEach((a) => {
+      const row = document.createElement('div');
+      row.className = 'attendee-row';
+      const digits = (a.mobile || '').replace(/[^\d]/g, '');
+      const msg = encodeURIComponent('Hi ' + a.name + ', this is a reminder about our upcoming webinar on ' + data.event.topic + '.');
+      const mailSubject = encodeURIComponent('Regarding: ' + data.event.topic);
+      const mailBody = encodeURIComponent('Hi ' + a.name + ',\n\n');
+      row.innerHTML =
+        '<div class="who">' +
+          '<div class="name"></div>' +
+          '<div class="sub"></div>' +
+        '</div>' +
+        '<div class="actions">' +
+          '<a class="round-btn" title="Email" target="_blank" rel="noopener" href="mailto:' + a.email + '?subject=' + mailSubject + '&body=' + mailBody + '">' +
+            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>' +
+          '</a>' +
+          '<a class="round-btn wa" title="WhatsApp" target="_blank" rel="noopener" href="https://wa.me/' + digits + '?text=' + msg + '">' +
+            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12.36 7.56L4 20l1.06-4.44A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8.5 10.5c.3 2 2.7 4.4 4.7 4.7.9.1 1.6-.5 1.8-1.2l.1-.5-1.8-1-1 .5c-.6-.3-1.6-1.3-1.9-1.9l.5-1-1-1.8-.5.1c-.7.2-1.3.9-1.2 1.8Z" fill="currentColor" stroke="none"/></svg>' +
+          '</a>' +
+        '</div>';
+      row.querySelector('.name').textContent = a.name;
+      row.querySelector('.sub').textContent = [a.email, a.mobile].filter(Boolean).join(' · ');
+      list.appendChild(row);
+    });
+  }
+
+  $('backBtn').addEventListener('click', () => {
+    $('detailView').classList.add('hidden');
+    $('listView').classList.remove('hidden');
+  });
+
+  // ── Dashboard view ─────────────────────────────
+  async function openDashboard(){
+    $('listView').classList.add('hidden');
+    $('detailView').classList.add('hidden');
+    $('dashboardView').classList.remove('hidden');
+
+    const res = await fetch(WEB_APP_URL + '?action=getDashboard&token=' + encodeURIComponent(adminToken()));
+    const data = await res.json();
+    if (data.error) { toast(data.error); return; }
+
+    $('statWebinars').textContent = data.totalWebinars;
+    $('statRegistrations').textContent = data.totalRegistrations;
+    $('statFeedback').textContent = data.totalFeedback;
+
+    if (webinarChartInstance) { webinarChartInstance.destroy(); webinarChartInstance = null; }
+    if (countryChartInstance) { countryChartInstance.destroy(); countryChartInstance = null; }
+
+    $('webinarChartEmpty').classList.toggle('hidden', data.perWebinar.length > 0);
+    if (data.perWebinar.length > 0) {
+      webinarChartInstance = new Chart($('webinarChart'), {
+        type: 'bar',
+        data: {
+          labels: data.perWebinar.map(e => e.topic),
+          datasets: [{ data: data.perWebinar.map(e => e.registered), backgroundColor: '#10213A', borderRadius: 6 }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+      });
+    }
+
+    const countries = Object.keys(data.perCountry);
+    $('countryChartEmpty').classList.toggle('hidden', countries.length > 0);
+    if (countries.length > 0) {
+      countryChartInstance = new Chart($('countryChart'), {
+        type: 'bar',
+        data: {
+          labels: countries,
+          datasets: [{
+            data: countries.map(c => data.perCountry[c]),
+            backgroundColor: countries.map((c, i) => CHART_PALETTE[i % CHART_PALETTE.length]),
+            borderRadius: 6
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+      });
+    }
+  }
+
+  $('dashboardBtn').addEventListener('click', openDashboard);
+  $('dashboardBackBtn').addEventListener('click', () => {
+    $('dashboardView').classList.add('hidden');
+    $('listView').classList.remove('hidden');
+  });
+
+  $('copyLinkBtn').addEventListener('click', () => copyText(shareUrl(currentEventId)));
+
+  $('editEventBtn').addEventListener('click', () => {
+    if (!currentEventDetail) return;
+    openEditSheet(currentEventDetail);
+  });
+
+  // ── Add-event sheet (also doubles as the edit sheet) ─────────
+  function resetSheet(){
+    editingEventId = null;
+    $('sheetTitle').textContent = 'Schedule webinar';
+    $('addFormPanel').classList.remove('hidden');
+    $('sharePanel').classList.add('hidden');
+    $('newTopic').value = '';
+    $('newDate').value = '';
+    $('newConductor').value = 'Arjun K T M';
+    $('newDescription').value = '';
+    $('newMeetingLink').value = '';
+    $('meetingLinkField').classList.add('hidden');
+    $('meetingLinkNote').style.display = 'block';
+    $('createError').style.display = 'none';
+    $('createEventBtn').disabled = false;
+    $('createEventBtn').textContent = 'Schedule webinar';
+  }
+
+  function openEditSheet(event){
+    editingEventId = event.id;
+    $('sheetTitle').textContent = 'Edit webinar';
+    $('addFormPanel').classList.remove('hidden');
+    $('sharePanel').classList.add('hidden');
+    $('newTopic').value = event.topic;
+    $('newDate').value = toDatetimeLocalValue(new Date(event.dateISO));
+    $('newConductor').value = event.conductedBy;
+    $('newDescription').value = event.description || '';
+    $('newMeetingLink').value = event.meetingLink || '';
+    $('meetingLinkField').classList.remove('hidden');
+    $('meetingLinkNote').style.display = 'none';
+    $('createError').style.display = 'none';
+    $('createEventBtn').disabled = false;
+    $('createEventBtn').textContent = 'Save changes';
+    $('addOverlay').classList.remove('hidden');
+  }
+
+  $('fabBtn').addEventListener('click', () => { resetSheet(); $('addOverlay').classList.remove('hidden'); });
+  $('closeSheetBtn').addEventListener('click', closeSheetAndRefresh);
+  $('doneSheetBtn').addEventListener('click', closeSheetAndRefresh);
+  $('addOverlay').addEventListener('click', (e) => { if (e.target === $('addOverlay')) closeSheetAndRefresh(); });
+
+  async function closeSheetAndRefresh(){
+    $('addOverlay').classList.add('hidden');
+    const wasEditing = editingEventId;
+    await loadEvents();
+    if (wasEditing) {
+      openDetail(wasEditing);
+    } else {
+      $('detailView').classList.add('hidden');
+      $('listView').classList.remove('hidden');
+      renderEventList();
+    }
+  }
+
+  $('createEventBtn').addEventListener('click', async () => {
+    const topic = $('newTopic').value.trim();
+    const dateVal = $('newDate').value;
+    const conductedBy = $('newConductor').value.trim();
+    const description = $('newDescription').value.trim();
+    const meetingLink = $('newMeetingLink').value.trim();
+    if (!topic || !dateVal) {
+      $('createError').textContent = 'Please add a topic and a date & time.';
+      $('createError').style.display = 'block';
+      return;
+    }
+    const isEdit = !!editingEventId;
+    $('createEventBtn').disabled = true;
+    $('createEventBtn').textContent = isEdit ? 'Saving…' : 'Scheduling…';
+
+    const payload = isEdit
+      ? { action: 'updateEvent', token: adminToken(), id: editingEventId, topic, conductedBy, dateISO: new Date(dateVal).toISOString(), description, meetingLink }
+      : { action: 'createEvent', token: adminToken(), topic, conductedBy, dateISO: new Date(dateVal).toISOString(), description };
+
+    try {
+      const res = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      if (isEdit) {
+        toast('Webinar updated');
+        closeSheetAndRefresh();
+        return;
+      }
+
+      $('addFormPanel').classList.add('hidden');
+      $('sharePanel').classList.remove('hidden');
+      const link = shareUrl(data.id);
+      $('shareLinkInput').value = link;
+      $('shareWaBtn').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent('Join our webinar: ' + topic + '\n' + link), '_blank');
+      $('shareCopyBtn').onclick = () => copyText(link);
+    } catch (err) {
+      $('createError').textContent = err.message || 'Something went wrong.';
+      $('createError').style.display = 'block';
+      $('createEventBtn').disabled = false;
+      $('createEventBtn').textContent = isEdit ? 'Save changes' : 'Schedule webinar';
+    }
+  });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  boot();
+</script>
+</body>
+</html>
