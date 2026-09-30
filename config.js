@@ -1,6 +1,6 @@
 // Paste the Web app URL you got from Apps Script → Deploy → Web app.
 // It looks like: https://script.google.com/macros/s/AKfycbx.../exec
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyFKvajWqPOh4Et_2N_kyjUgwFHs6OHpncAuyl_dv7MCeYB8b9lEUgqYGvn_RZWqD18/exec';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyyqFfqWwoFKvPiIt5uctL_fP5JN2eVo58hL2tcglE222cvwSlAgEH44bTnjUV7PLAb/exec';
 
 const FIRM_NAME = 'Wealth Matrix';
 
