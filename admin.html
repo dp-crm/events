@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Webinars — Wealth Matrix</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#10213A" media="(prefers-color-scheme: light)">
@@ -55,7 +55,9 @@
       --chart-5:#C9975E; --chart-6:#7FA8C9; --chart-7:#E28173; --chart-8:#9FB0C4;
     }
   }
-  html{ overscroll-behavior-y:none; }
+  html{ overscroll-behavior-y:none; overflow-x:hidden; }
+  body{ overflow-x:hidden; }
+  input, select, textarea{ font-size:16px; }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; height:100%;}
   body{
@@ -84,39 +86,13 @@
     *{ transition-duration:0.001ms !important; animation-duration:0.001ms !important; }
   }
 
-  /* ── Passcode gate ───────────────────────────── */
-  #gate{
-    min-height:100vh;
-    display:flex; align-items:center; justify-content:center;
-    padding:24px;
-  }
-  .gate-card{
-    width:100%; max-width:340px;
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:14px;
-    padding:28px 24px;
-    text-align:center;
-  }
-  .gate-card h1{
-    font-family:'Fraunces',serif; font-weight:600; font-size:1.3rem; margin:0 0 6px;
-  }
-  .gate-card p{ color:var(--ink-soft); font-size:.88rem; margin:0 0 18px; }
-  .gate-card input{
-    width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:9px;
-    font-size:1rem; text-align:center; letter-spacing:.05em;
-  }
-  .gate-card button{
-    width:100%; margin-top:14px; padding:11px; border:none; border-radius:9px;
-    background:var(--ink); color:#fff; font-weight:600; font-size:.95rem; cursor:pointer;
-  }
-  .gate-error{ color:var(--red); font-size:.85rem; margin-top:10px; display:none; }
-
   /* ── App shell ───────────────────────────────── */
   #app{ max-width:560px; margin:0 auto; padding:0 16px 100px; }
   .topbar{
     display:flex; align-items:center; justify-content:space-between;
     padding:22px 2px 16px;
+    position:sticky; top:env(safe-area-inset-top,0px); z-index:5;
+    background:var(--paper);
   }
   .topbar h1{
     font-family:'Fraunces',serif; font-weight:600; font-size:1.5rem; margin:0;
@@ -167,16 +143,21 @@
   }
 
   /* ── Detail view ─────────────────────────────── */
-  #detailView .back-row{ display:flex; align-items:center; gap:10px; padding:22px 2px 12px; }
-  #detailView .back-row button{ border:none; background:transparent; color:var(--ink-soft); cursor:pointer; padding:4px; display:flex; }
-  #detailView .back-row span{ font-size:.9rem; color:var(--ink-soft); }
+  .back-row{
+    display:flex; align-items:center; gap:10px; padding:22px 2px 12px;
+    position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--paper);
+  }
+  .back-row button{ border:none; background:transparent; color:var(--ink-soft); cursor:pointer; padding:4px; display:flex; }
+  .back-row span{ font-size:.9rem; color:var(--ink-soft); }
 
   .event-card{
     background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:20px;
+    overflow-wrap:break-word; word-break:break-word;
   }
   .event-card h2{ font-family:'Fraunces',serif; font-weight:600; font-size:1.25rem; margin:0 0 10px; }
   .event-card .row{ display:flex; align-items:flex-start; gap:8px; font-size:.88rem; color:var(--ink-soft); margin-bottom:5px; }
   .event-card .row svg{ flex:none; margin-top:2px; }
+  .event-card .row span{ min-width:0; }
   .event-card .actions{ display:flex; gap:10px; margin-top:16px; }
   .ghost-btn{
     border:1px solid var(--line); background:transparent; color:var(--ink);
@@ -273,19 +254,8 @@
 </head>
 <body>
 
-<!-- Passcode gate -->
-<div id="gate">
-  <div class="gate-card">
-    <h1>Webinars</h1>
-    <p>Enter your passcode to continue</p>
-    <input id="passInput" type="password" autocomplete="off" inputmode="text">
-    <button id="unlockBtn">Unlock</button>
-    <p class="gate-error" id="gateError">That passcode isn't right.</p>
-  </div>
-</div>
-
 <!-- Main app -->
-<div id="app" class="hidden">
+<div id="app">
 
   <!-- List view -->
   <div id="listView">
@@ -452,7 +422,6 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const TOKEN_KEY = 'dp_webinar_admin_token';
   let eventsCache = [];
   let currentEventId = null;
   let currentEventDetail = null;
@@ -501,50 +470,16 @@
     }
   }
 
-  // ── Passcode gate ──────────────────────────────
-  async function tryUnlock(token){
-    const res = await fetch(WEB_APP_URL + '?action=getEvents&token=' + encodeURIComponent(token));
-    const data = await res.json();
-    if (data.error) return false;
-    eventsCache = data.events;
-    return true;
-  }
-
-  $('unlockBtn').addEventListener('click', async () => {
-    const token = $('passInput').value.trim();
-    if (!token) return;
-    $('unlockBtn').textContent = 'Checking…';
-    const ok = await tryUnlock(token);
-    $('unlockBtn').textContent = 'Unlock';
-    if (ok) {
-      localStorage.setItem(TOKEN_KEY, token);
-      $('gate').classList.add('hidden');
-      $('app').classList.remove('hidden');
-      history.replaceState({ view: 'list' }, '', location.pathname);
-      renderEventList();
-    } else {
-      $('gateError').style.display = 'block';
-    }
-  });
-  $('passInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('unlockBtn').click(); });
+  // No passcode: the app is open on load. adminToken() is kept as a stub
+  // (rather than deleting it) so every existing fetch call that appends
+  // ?token=... still works untouched — the server no longer checks it either.
+  function adminToken(){ return ''; }
 
   async function boot(){
-    const saved = localStorage.getItem(TOKEN_KEY);
-    if (saved) {
-      const ok = await tryUnlock(saved);
-      if (ok) {
-        $('gate').classList.add('hidden');
-        $('app').classList.remove('hidden');
-        history.replaceState({ view: 'list' }, '', location.pathname);
-        renderEventList();
-        return;
-      }
-      localStorage.removeItem(TOKEN_KEY);
-    }
-    $('gate').classList.remove('hidden');
+    history.replaceState({ view: 'list' }, '', location.pathname);
+    await loadEvents();
+    renderEventList();
   }
-
-  function adminToken(){ return localStorage.getItem(TOKEN_KEY); }
 
   // ── List view ──────────────────────────────────
   async function loadEvents(){

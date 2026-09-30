@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Register — Wealth Matrix</title>
 <meta name="theme-color" content="#10213A" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B1420" media="(prefers-color-scheme: dark)">
@@ -36,7 +36,9 @@
       --red:#E28173;
     }
   }
-  html{ overscroll-behavior-y:none; }
+  html{ overscroll-behavior-y:none; overflow-x:hidden; }
+  body{ overflow-x:hidden; }
+  input, select, textarea{ font-size:16px; }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
   body{
@@ -60,6 +62,8 @@
     border:1px solid var(--line);
     box-shadow:0 1px 2px rgba(16,33,58,.04), 0 12px 32px -16px rgba(16,33,58,.18);
     overflow:hidden;
+    overflow-wrap:break-word;
+    word-break:break-word;
   }
   .card-top{ padding:32px 28px 24px; }
   .wordmark{
@@ -91,6 +95,7 @@
     color:var(--ink-soft);
   }
   .meta-row svg{ flex:none; margin-top:2px; }
+  .meta-row span{ min-width:0; }
   .meta-row strong{ color:var(--ink); font-weight:500; }
   .description{
     margin:14px 0 0;
