@@ -5,13 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Webinars — Wealth Matrix</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#10213A">
+<meta name="theme-color" content="#10213A" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B1420" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Webinars">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
   :root{
     --paper:#E9EDF1;
@@ -23,7 +27,35 @@
     --green:#2F6F4E;
     --red:#B0402F;
     --wa:#2E9E5B;
+    --call:#2F6690;
+    --wa-tint-bg:#F2FBF5;
+    --wa-tint-border:#cfe9db;
+    --call-tint-border:#cfe0ea;
+    --tick-bg:#E7F1EB;
+    --chart-1:#10213A; --chart-2:#B8863B; --chart-3:#4C5A6E; --chart-4:#2F6F4E;
+    --chart-5:#8A6D3B; --chart-6:#5C7A99; --chart-7:#B0402F; --chart-8:#7A8FA6;
   }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#0B1420;
+      --surface:#141F2E;
+      --ink:#EDEFF2;
+      --ink-soft:#9AA7B8;
+      --line:#283A50;
+      --gold:#D2A05C;
+      --green:#4CAF7D;
+      --red:#E28173;
+      --wa:#3DBE74;
+      --call:#6FA8DC;
+      --wa-tint-bg:#132420;
+      --wa-tint-border:#254a3c;
+      --call-tint-border:#20384f;
+      --tick-bg:#132420;
+      --chart-1:#EDEFF2; --chart-2:#D2A05C; --chart-3:#9AA7B8; --chart-4:#4CAF7D;
+      --chart-5:#C9975E; --chart-6:#7FA8C9; --chart-7:#E28173; --chart-8:#9FB0C4;
+    }
+  }
+  html{ overscroll-behavior-y:none; }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; height:100%;}
   body{
@@ -33,9 +65,24 @@
     line-height:1.45;
     padding-top:env(safe-area-inset-top,0px);
     padding-bottom:env(safe-area-inset-bottom,0px);
+    overscroll-behavior-y:none;
   }
   button{ font-family:inherit; }
   .hidden{ display:none !important; }
+
+  /* pressed states — the tactile feedback a native control gives you */
+  .capsule, .icon-btn, .fab, .ghost-btn, .round-btn, .copy-btn,
+  .primary-btn, button.submit, .cal-btn, .wa-share, .attendee-row .round-btn{
+    transition:transform .1s ease, filter .1s ease, background-color .15s ease;
+  }
+  .capsule:active{ transform:scale(.98); background:var(--paper); }
+  .icon-btn:active, .copy-btn:active, .round-btn:active{ transform:scale(.92); background:var(--paper); }
+  .fab:active{ transform:scale(.92); }
+  .ghost-btn:active{ transform:scale(.97); background:var(--paper); }
+  .primary-btn:active, .wa-share:active{ transform:scale(.98); filter:brightness(.92); }
+  @media (prefers-reduced-motion: reduce){
+    *{ transition-duration:0.001ms !important; animation-duration:0.001ms !important; }
+  }
 
   /* ── Passcode gate ───────────────────────────── */
   #gate{
@@ -153,7 +200,8 @@
     background:var(--surface); display:flex; align-items:center; justify-content:center;
     text-decoration:none; color:var(--ink);
   }
-  .round-btn.wa{ color:var(--wa); border-color:#cfe9db; }
+  .round-btn.wa{ color:var(--wa); border-color:var(--wa-tint-border); }
+  .round-btn.call{ color:var(--call); border-color:var(--call-tint-border); }
 
   /* ── Dashboard view ──────────────────────────── */
   .stats{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
@@ -167,20 +215,26 @@
 
   /* ── Add-event bottom sheet ──────────────────── */
   .overlay{
-    position:fixed; inset:0; background:rgba(16,33,58,.4); display:flex; align-items:flex-end; justify-content:center; z-index:20;
+    position:fixed; inset:0; background:rgba(16,33,58,0); display:flex; align-items:flex-end; justify-content:center; z-index:20;
+    transition:background-color .25s ease; pointer-events:none;
   }
+  .overlay.open{ background:rgba(16,33,58,.4); pointer-events:auto; }
+  @media (prefers-color-scheme: dark){ .overlay.open{ background:rgba(0,0,0,.6); } }
   .sheet{
     width:100%; max-width:480px; background:var(--surface);
-    border-radius:18px 18px 0 0; padding:20px 22px calc(22px + env(safe-area-inset-bottom,0px));
+    border-radius:18px 18px 0 0; padding:8px 22px calc(22px + env(safe-area-inset-bottom,0px));
     max-height:88vh; overflow-y:auto;
+    transform:translateY(100%); transition:transform .28s cubic-bezier(.32,.72,0,1);
   }
+  .overlay.open .sheet{ transform:translateY(0); }
+  .sheet-handle{ width:36px; height:4px; border-radius:999px; background:var(--line); margin:6px auto 14px; touch-action:none; }
   .sheet-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .sheet-head h3{ font-family:'Fraunces',serif; font-weight:600; font-size:1.15rem; margin:0; }
   .sheet-head button{ border:none; background:transparent; color:var(--ink-soft); cursor:pointer; padding:4px; }
   .form-label{ display:block; font-size:.85rem; color:var(--ink-soft); margin:14px 0 6px; }
   .field{
     width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:9px;
-    font-size:.96rem; font-family:inherit; color:var(--ink); background:var(--surface);
+    font-size:16px; font-family:inherit; color:var(--ink); background:var(--surface);
   }
   .field:focus{ outline:2px solid var(--gold); outline-offset:1px; border-color:var(--gold); }
   textarea.field{ resize:vertical; min-height:70px; }
@@ -192,7 +246,7 @@
   .sheet-error{ color:var(--red); font-size:.85rem; margin-top:8px; display:none; }
 
   .share-panel .tick{
-    width:40px; height:40px; border-radius:50%; background:#E7F1EB; color:var(--green);
+    width:40px; height:40px; border-radius:50%; background:var(--tick-bg); color:var(--green);
     display:flex; align-items:center; justify-content:center; margin-bottom:12px;
   }
   .share-panel p{ font-size:.9rem; color:var(--ink-soft); margin:0 0 14px; }
@@ -203,8 +257,8 @@
     padding:0 14px; font-size:.85rem; cursor:pointer;
   }
   .wa-share{
-    margin-top:12px; width:100%; padding:11px; border-radius:9px; border:1px solid #cfe9db;
-    background:#F2FBF5; color:var(--wa); font-weight:600; font-size:.9rem; cursor:pointer;
+    margin-top:12px; width:100%; padding:11px; border-radius:9px; border:1px solid var(--wa-tint-border);
+    background:var(--wa-tint-bg); color:var(--wa); font-weight:600; font-size:.9rem; cursor:pointer;
     display:flex; align-items:center; justify-content:center; gap:8px;
   }
 
@@ -241,10 +295,10 @@
         <div class="sub" id="listSub">Loading…</div>
       </div>
       <div style="display:flex; gap:8px;">
-        <button class="icon-btn" id="refreshBtn" title="Refresh">
+        <button class="icon-btn" id="refreshBtn" title="Refresh" aria-label="Refresh webinar list">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v6h-6"/></svg>
         </button>
-        <button class="icon-btn" id="dashboardBtn" title="Dashboard">
+        <button class="icon-btn" id="dashboardBtn" title="Dashboard" aria-label="Open dashboard">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>
         </button>
       </div>
@@ -260,7 +314,7 @@
   <!-- Detail view -->
   <div id="detailView" class="hidden">
     <div class="back-row">
-      <button id="backBtn">
+      <button id="backBtn" aria-label="Back to all webinars">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4l-8 8 8 8"/></svg>
       </button>
       <span>All webinars</span>
@@ -286,11 +340,11 @@
       </div>
       <p id="dDescription" style="display:none; font-size:.88rem; color:var(--ink-soft); margin:10px 0 0; line-height:1.5; white-space:pre-line;"></p>
       <div class="actions">
-        <button class="ghost-btn" id="copyLinkBtn">
+        <button class="ghost-btn" id="copyLinkBtn" aria-label="Share this webinar registration link">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.07 0l2-2a5 5 0 0 0-7.07-7.07l-1 1"/><path d="M14 11a5 5 0 0 0-7.07 0l-2 2a5 5 0 0 0 7.07 7.07l1-1"/></svg>
-          Copy link
+          Share link
         </button>
-        <button class="ghost-btn" id="editEventBtn">
+        <button class="ghost-btn" id="editEventBtn" aria-label="Edit this webinar">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           Edit
         </button>
@@ -304,7 +358,7 @@
   <!-- Dashboard view -->
   <div id="dashboardView" class="hidden">
     <div class="back-row">
-      <button id="dashboardBackBtn">
+      <button id="dashboardBackBtn" aria-label="Back to all webinars">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4l-8 8 8 8"/></svg>
       </button>
       <span>All webinars</span>
@@ -334,18 +388,31 @@
 <!-- Add event bottom sheet -->
 <div id="addOverlay" class="overlay hidden">
   <div class="sheet">
+    <div class="sheet-handle" id="sheetHandle"></div>
+
 
     <div id="addFormPanel">
       <div class="sheet-head">
         <h3 id="sheetTitle">New webinar</h3>
-        <button id="closeSheetBtn">
+        <button id="closeSheetBtn" aria-label="Close">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
       <label class="form-label" for="newTopic">Topic</label>
       <input class="field" id="newTopic" placeholder="e.g. GCC NRI Retirement">
-      <label class="form-label" for="newDate">Date &amp; time</label>
-      <input class="field" id="newDate" type="datetime-local">
+      <label class="form-label">Date &amp; time</label>
+      <div style="display:flex; gap:10px;">
+        <input class="field" id="newEventDate" type="date" required style="flex:1.2; min-width:0;">
+        <input class="field" id="newEventTime" type="time" required style="flex:1; min-width:0;">
+      </div>
+      <label class="form-label" for="newDuration">Duration</label>
+      <select class="field" id="newDuration">
+        <option value="30">30 minutes</option>
+        <option value="45">45 minutes</option>
+        <option value="60" selected>1 hour</option>
+        <option value="90">1 hour 30 minutes</option>
+        <option value="120">2 hours</option>
+      </select>
       <label class="form-label" for="newConductor">Conducted by</label>
       <input class="field" id="newConductor" value="Arjun K T M">
       <label class="form-label" for="newDescription">Description</label>
@@ -376,7 +443,7 @@
   </div>
 </div>
 
-<button class="fab" id="fabBtn" title="Schedule webinar">
+<button class="fab" id="fabBtn" title="Schedule webinar" aria-label="Schedule a new webinar">
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 5v14M5 12h14"/></svg>
 </button>
 
@@ -392,11 +459,26 @@
   let editingEventId = null;
   let webinarChartInstance = null;
   let countryChartInstance = null;
-  const CHART_PALETTE = ['#10213A', '#B8863B', '#4C5A6E', '#2F6F4E', '#8A6D3B', '#5C7A99', '#B0402F', '#7A8FA6'];
+  function chartPalette(){
+    const cs = getComputedStyle(document.documentElement);
+    return [1,2,3,4,5,6,7,8].map(n => cs.getPropertyValue('--chart-' + n).trim());
+  }
 
-  function toDatetimeLocalValue(d){
+  function toDateValue(d){
     const pad = (n) => String(n).padStart(2, '0');
-    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  function toTimeValue(d){
+    const pad = (n) => String(n).padStart(2, '0');
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function formatDuration(minutes){
+    const m = Number(minutes) || 60;
+    const h = Math.floor(m / 60);
+    const rem = m % 60;
+    if (h === 0) return m + ' minutes';
+    if (rem === 0) return h + (h === 1 ? ' hour' : ' hours');
+    return h + (h === 1 ? ' hour ' : ' hours ') + rem + ' minutes';
   }
 
   // ── Toast ──────────────────────────────────────
@@ -410,6 +492,13 @@
   }
   function copyText(text){
     navigator.clipboard?.writeText(text).then(() => toast('Link copied')).catch(() => toast('Could not copy'));
+  }
+  function shareOrCopyLink(url, topic){
+    if (navigator.share) {
+      navigator.share({ title: topic || 'Webinar registration', url: url }).catch(() => {});
+    } else {
+      copyText(url);
+    }
   }
 
   // ── Passcode gate ──────────────────────────────
@@ -431,6 +520,7 @@
       localStorage.setItem(TOKEN_KEY, token);
       $('gate').classList.add('hidden');
       $('app').classList.remove('hidden');
+      history.replaceState({ view: 'list' }, '', location.pathname);
       renderEventList();
     } else {
       $('gateError').style.display = 'block';
@@ -445,6 +535,7 @@
       if (ok) {
         $('gate').classList.add('hidden');
         $('app').classList.remove('hidden');
+        history.replaceState({ view: 'list' }, '', location.pathname);
         renderEventList();
         return;
       }
@@ -482,7 +573,7 @@
           '<div class="when"></div>' +
         '</div>' +
         '<div class="count"></div>' +
-        '<button class="copy-btn" title="Copy link">' +
+        '<button class="copy-btn" title="Share link" aria-label="Share this webinar registration link">' +
           '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.07 0l2-2a5 5 0 0 0-7.07-7.07l-1 1"/><path d="M14 11a5 5 0 0 0-7.07 0l-2 2a5 5 0 0 0 7.07 7.07l1-1"/></svg>' +
         '</button>';
       el.querySelector('.topic').textContent = ev.topic;
@@ -490,7 +581,7 @@
       el.querySelector('.count').textContent = ev.registered + (ev.registered === 1 ? ' registered' : ' registered');
       el.querySelector('.copy-btn').addEventListener('click', (e) => {
         e.stopPropagation();
-        copyText(shareUrl(ev.id));
+        shareOrCopyLink(shareUrl(ev.id), ev.topic);
       });
       el.addEventListener('click', () => openDetail(ev.id));
       list.appendChild(el);
@@ -503,10 +594,19 @@
   });
 
   // ── Detail view ────────────────────────────────
-  async function openDetail(id){
+  function withViewTransition(fn){
+    if (document.startViewTransition) document.startViewTransition(fn);
+    else fn();
+  }
+
+  async function openDetail(id, push){
+    if (push !== false) history.pushState({ view: 'detail', id: id }, '', '#event-' + id);
     currentEventId = id;
-    $('listView').classList.add('hidden');
-    $('detailView').classList.remove('hidden');
+    withViewTransition(() => {
+      $('listView').classList.add('hidden');
+      $('dashboardView').classList.add('hidden');
+      $('detailView').classList.remove('hidden');
+    });
     $('attendeeList').innerHTML = '<p style="color:var(--ink-soft); font-size:.9rem; padding:8px 4px;">Loading…</p>';
 
     const res = await fetch(WEB_APP_URL + '?action=getAttendees&token=' + encodeURIComponent(adminToken()) + '&id=' + encodeURIComponent(id));
@@ -515,7 +615,7 @@
 
     currentEventDetail = data.event;
     $('dTopic').textContent = data.event.topic;
-    $('dDate').textContent = data.event.dateDisplay;
+    $('dDate').textContent = data.event.dateDisplay + ' · ' + formatDuration(data.event.durationMinutes);
     $('dConductedBy').textContent = 'Conducted by ' + data.event.conductedBy;
     $('dCount').textContent = data.attendees.length + (data.attendees.length === 1 ? ' person registered' : ' people registered');
     $('attendeesLabel').textContent = 'Registered (' + data.attendees.length + ')';
@@ -550,6 +650,7 @@
       const row = document.createElement('div');
       row.className = 'attendee-row';
       const digits = (a.mobile || '').replace(/[^\d]/g, '');
+      const telHref = 'tel:' + (a.mobile || '').replace(/\s+/g, '');
       const msg = encodeURIComponent('Hi ' + a.name + ', this is a reminder about our upcoming webinar on ' + data.event.topic + '.');
       const mailSubject = encodeURIComponent('Regarding: ' + data.event.topic);
       const mailBody = encodeURIComponent('Hi ' + a.name + ',\n\n');
@@ -559,10 +660,14 @@
           '<div class="sub"></div>' +
         '</div>' +
         '<div class="actions">' +
-          '<a class="round-btn" title="Email" target="_blank" rel="noopener" href="mailto:' + a.email + '?subject=' + mailSubject + '&body=' + mailBody + '">' +
+          (a.mobile ? (
+          '<a class="round-btn call" title="Call" aria-label="Call ' + a.name + '" href="' + telHref + '">' +
+            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>' +
+          '</a>') : '') +
+          '<a class="round-btn" title="Email" aria-label="Email ' + a.name + '" target="_blank" rel="noopener" href="mailto:' + a.email + '?subject=' + mailSubject + '&body=' + mailBody + '">' +
             '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>' +
           '</a>' +
-          '<a class="round-btn wa" title="WhatsApp" target="_blank" rel="noopener" href="https://wa.me/' + digits + '?text=' + msg + '">' +
+          '<a class="round-btn wa" title="WhatsApp" aria-label="Message ' + a.name + ' on WhatsApp" target="_blank" rel="noopener" href="https://wa.me/' + digits + '?text=' + msg + '">' +
             '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12.36 7.56L4 20l1.06-4.44A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8.5 10.5c.3 2 2.7 4.4 4.7 4.7.9.1 1.6-.5 1.8-1.2l.1-.5-1.8-1-1 .5c-.6-.3-1.6-1.3-1.9-1.9l.5-1-1-1.8-.5.1c-.7.2-1.3.9-1.2 1.8Z" fill="currentColor" stroke="none"/></svg>' +
           '</a>' +
         '</div>';
@@ -572,27 +677,59 @@
     });
   }
 
-  $('backBtn').addEventListener('click', () => {
-    $('detailView').classList.add('hidden');
-    $('listView').classList.remove('hidden');
-  });
+  function goToList(push){
+    if (push !== false) history.pushState({ view: 'list' }, '', location.pathname);
+    withViewTransition(() => {
+      $('detailView').classList.add('hidden');
+      $('dashboardView').classList.add('hidden');
+      $('listView').classList.remove('hidden');
+    });
+  }
+  $('backBtn').addEventListener('click', () => history.back());
 
   // ── Dashboard view ─────────────────────────────
-  async function openDashboard(){
-    $('listView').classList.add('hidden');
-    $('detailView').classList.add('hidden');
-    $('dashboardView').classList.remove('hidden');
+  let chartJsPromise = null;
+  function loadChartJs(){
+    if (window.Chart) return Promise.resolve();
+    if (chartJsPromise) return chartJsPromise;
+    chartJsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    return chartJsPromise;
+  }
+
+  async function openDashboard(push){
+    if (push !== false) history.pushState({ view: 'dashboard' }, '', '#dashboard');
+    withViewTransition(() => {
+      $('listView').classList.add('hidden');
+      $('detailView').classList.add('hidden');
+      $('dashboardView').classList.remove('hidden');
+    });
 
     const res = await fetch(WEB_APP_URL + '?action=getDashboard&token=' + encodeURIComponent(adminToken()));
     const data = await res.json();
     if (data.error) { toast(data.error); return; }
 
+    // Numbers appear immediately; the charting library only loads now, on
+    // first actual use, so the far more common "just check the list" visits
+    // never pay for it.
     $('statWebinars').textContent = data.totalWebinars;
     $('statRegistrations').textContent = data.totalRegistrations;
     $('statFeedback').textContent = data.totalFeedback;
 
+    await loadChartJs();
+
     if (webinarChartInstance) { webinarChartInstance.destroy(); webinarChartInstance = null; }
     if (countryChartInstance) { countryChartInstance.destroy(); countryChartInstance = null; }
+
+    const palette = chartPalette();
+    const cs = getComputedStyle(document.documentElement);
+    const axisColor = cs.getPropertyValue('--ink-soft').trim();
+    const gridColor = cs.getPropertyValue('--line').trim();
 
     $('webinarChartEmpty').classList.toggle('hidden', data.perWebinar.length > 0);
     if (data.perWebinar.length > 0) {
@@ -600,12 +737,12 @@
         type: 'bar',
         data: {
           labels: data.perWebinar.map(e => e.topic),
-          datasets: [{ data: data.perWebinar.map(e => e.registered), backgroundColor: '#10213A', borderRadius: 6 }]
+          datasets: [{ data: data.perWebinar.map(e => e.registered), backgroundColor: palette[0], borderRadius: 6 }]
         },
         options: {
           maintainAspectRatio: false,
           plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+          scales: { y: { beginAtZero: true, ticks: { precision: 0, color: axisColor }, grid: { color: gridColor } }, x: { ticks: { color: axisColor }, grid: { display: false } } }
         }
       });
     }
@@ -619,7 +756,7 @@
           labels: countries,
           datasets: [{
             data: countries.map(c => data.perCountry[c]),
-            backgroundColor: countries.map((c, i) => CHART_PALETTE[i % CHART_PALETTE.length]),
+            backgroundColor: countries.map((c, i) => palette[i % palette.length]),
             borderRadius: 6
           }]
         },
@@ -627,19 +764,23 @@
           indexAxis: 'y',
           maintainAspectRatio: false,
           plugins: { legend: { display: false } },
-          scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+          scales: { x: { beginAtZero: true, ticks: { precision: 0, color: axisColor }, grid: { color: gridColor } }, y: { ticks: { color: axisColor }, grid: { display: false } } }
         }
       });
     }
   }
 
-  $('dashboardBtn').addEventListener('click', openDashboard);
-  $('dashboardBackBtn').addEventListener('click', () => {
-    $('dashboardView').classList.add('hidden');
-    $('listView').classList.remove('hidden');
+  $('dashboardBtn').addEventListener('click', () => openDashboard());
+  $('dashboardBackBtn').addEventListener('click', () => history.back());
+
+  window.addEventListener('popstate', (e) => {
+    const state = e.state;
+    if (!state || state.view === 'list') goToList(false);
+    else if (state.view === 'detail') openDetail(state.id, false);
+    else if (state.view === 'dashboard') openDashboard(false);
   });
 
-  $('copyLinkBtn').addEventListener('click', () => copyText(shareUrl(currentEventId)));
+  $('copyLinkBtn').addEventListener('click', () => shareOrCopyLink(shareUrl(currentEventId), currentEventDetail && currentEventDetail.topic));
 
   $('editEventBtn').addEventListener('click', () => {
     if (!currentEventDetail) return;
@@ -653,7 +794,9 @@
     $('addFormPanel').classList.remove('hidden');
     $('sharePanel').classList.add('hidden');
     $('newTopic').value = '';
-    $('newDate').value = '';
+    $('newEventDate').value = '';
+    $('newEventTime').value = '';
+    $('newDuration').value = '60';
     $('newConductor').value = 'Arjun K T M';
     $('newDescription').value = '';
     $('newMeetingLink').value = '';
@@ -670,7 +813,10 @@
     $('addFormPanel').classList.remove('hidden');
     $('sharePanel').classList.add('hidden');
     $('newTopic').value = event.topic;
-    $('newDate').value = toDatetimeLocalValue(new Date(event.dateISO));
+    const d = new Date(event.dateISO);
+    $('newEventDate').value = toDateValue(d);
+    $('newEventTime').value = toTimeValue(d);
+    $('newDuration').value = String(event.durationMinutes || 60);
     $('newConductor').value = event.conductedBy;
     $('newDescription').value = event.description || '';
     $('newMeetingLink').value = event.meetingLink || '';
@@ -679,20 +825,58 @@
     $('createError').style.display = 'none';
     $('createEventBtn').disabled = false;
     $('createEventBtn').textContent = 'Save changes';
-    $('addOverlay').classList.remove('hidden');
+    showSheet();
   }
 
-  $('fabBtn').addEventListener('click', () => { resetSheet(); $('addOverlay').classList.remove('hidden'); });
+  function showSheet(){
+    $('addOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('addOverlay').classList.add('open')));
+  }
+  function hideSheet(){
+    $('addOverlay').classList.remove('open');
+    setTimeout(() => $('addOverlay').classList.add('hidden'), 280);
+  }
+
+  // Drag the handle down far enough and the sheet dismisses, like a native bottom sheet.
+  (function enableSheetDragToDismiss(){
+    const sheetEl = document.querySelector('#addOverlay .sheet');
+    const handle = $('sheetHandle');
+    let startY = 0, lastDelta = 0, dragging = false;
+    function start(e){
+      dragging = true;
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      sheetEl.style.transition = 'none';
+    }
+    function move(e){
+      if (!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      lastDelta = Math.max(0, y - startY);
+      sheetEl.style.transform = 'translateY(' + lastDelta + 'px)';
+    }
+    function end(){
+      if (!dragging) return;
+      dragging = false;
+      sheetEl.style.transition = '';
+      sheetEl.style.transform = '';
+      if (lastDelta > 120) closeSheetAndRefresh();
+      lastDelta = 0;
+    }
+    handle.addEventListener('touchstart', start, { passive: true });
+    handle.addEventListener('touchmove', move, { passive: true });
+    handle.addEventListener('touchend', end);
+  })();
+
+  $('fabBtn').addEventListener('click', () => { resetSheet(); showSheet(); });
   $('closeSheetBtn').addEventListener('click', closeSheetAndRefresh);
   $('doneSheetBtn').addEventListener('click', closeSheetAndRefresh);
   $('addOverlay').addEventListener('click', (e) => { if (e.target === $('addOverlay')) closeSheetAndRefresh(); });
 
   async function closeSheetAndRefresh(){
-    $('addOverlay').classList.add('hidden');
+    hideSheet();
     const wasEditing = editingEventId;
     await loadEvents();
     if (wasEditing) {
-      openDetail(wasEditing);
+      openDetail(wasEditing, false);
     } else {
       $('detailView').classList.add('hidden');
       $('listView').classList.remove('hidden');
@@ -702,22 +886,37 @@
 
   $('createEventBtn').addEventListener('click', async () => {
     const topic = $('newTopic').value.trim();
-    const dateVal = $('newDate').value;
+    const dateStr = $('newEventDate').value;
+    const timeStr = $('newEventTime').value;
+    const durationMinutes = parseInt($('newDuration').value, 10);
     const conductedBy = $('newConductor').value.trim();
     const description = $('newDescription').value.trim();
     const meetingLink = $('newMeetingLink').value.trim();
-    if (!topic || !dateVal) {
-      $('createError').textContent = 'Please add a topic and a date & time.';
+
+    if (!topic) {
+      $('createError').textContent = 'Please add a topic.';
       $('createError').style.display = 'block';
       return;
     }
+    if (!dateStr || !timeStr) {
+      $('createError').textContent = 'Please choose both a date and a time.';
+      $('createError').style.display = 'block';
+      return;
+    }
+    const dateVal = new Date(dateStr + 'T' + timeStr);
+    if (isNaN(dateVal.getTime())) {
+      $('createError').textContent = 'That date and time don\u2019t look valid — please check them.';
+      $('createError').style.display = 'block';
+      return;
+    }
+
     const isEdit = !!editingEventId;
     $('createEventBtn').disabled = true;
     $('createEventBtn').textContent = isEdit ? 'Saving…' : 'Scheduling…';
 
     const payload = isEdit
-      ? { action: 'updateEvent', token: adminToken(), id: editingEventId, topic, conductedBy, dateISO: new Date(dateVal).toISOString(), description, meetingLink }
-      : { action: 'createEvent', token: adminToken(), topic, conductedBy, dateISO: new Date(dateVal).toISOString(), description };
+      ? { action: 'updateEvent', token: adminToken(), id: editingEventId, topic, conductedBy, dateISO: dateVal.toISOString(), durationMinutes, description, meetingLink }
+      : { action: 'createEvent', token: adminToken(), topic, conductedBy, dateISO: dateVal.toISOString(), durationMinutes, description };
 
     try {
       const res = await fetch(WEB_APP_URL, {
