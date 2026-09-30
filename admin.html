@@ -34,6 +34,9 @@
     --tick-bg:#E7F1EB;
     --chart-1:#10213A; --chart-2:#B8863B; --chart-3:#4C5A6E; --chart-4:#2F6F4E;
     --chart-5:#8A6D3B; --chart-6:#5C7A99; --chart-7:#B0402F; --chart-8:#7A8FA6;
+    --btn-blue:#2557D6;
+    --btn-blue-text:#FFFFFF;
+    --gold-btn-text:#241900;
   }
   @media (prefers-color-scheme: dark){
     :root{
@@ -136,7 +139,7 @@
   .fab{
     position:fixed; right:20px; bottom:calc(24px + env(safe-area-inset-bottom,0px));
     width:56px; height:56px; border-radius:50%;
-    background:var(--gold); color:var(--ink); border:none;
+    background:var(--gold); color:var(--gold-btn-text); border:none;
     display:flex; align-items:center; justify-content:center;
     box-shadow:0 10px 24px -8px rgba(184,134,59,.6);
     cursor:pointer;
@@ -221,7 +224,7 @@
   textarea.field{ resize:vertical; min-height:70px; }
   .primary-btn{
     width:100%; margin-top:20px; padding:12px; border:none; border-radius:9px;
-    background:var(--ink); color:#fff; font-weight:600; font-size:.95rem; cursor:pointer;
+    background:var(--btn-blue); color:var(--btn-blue-text); font-weight:600; font-size:.95rem; cursor:pointer;
   }
   .primary-btn:disabled{ opacity:.55; }
   .sheet-error{ color:var(--red); font-size:.85rem; margin-top:8px; display:none; }
@@ -246,7 +249,7 @@
   /* toast */
   #toast{
     position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%) translateY(20px);
-    background:var(--ink); color:#fff; padding:10px 18px; border-radius:999px; font-size:.85rem;
+    background:var(--btn-blue); color:var(--btn-blue-text); padding:10px 18px; border-radius:999px; font-size:.85rem;
     opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:30;
   }
   #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }

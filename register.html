@@ -22,6 +22,9 @@
     --green:#2F6F4E;
     --red:#B0402F;
     --radius:14px;
+    --btn-blue:#2557D6;
+    --btn-blue-text:#FFFFFF;
+    --gold-btn-text:#241900;
   }
   @media (prefers-color-scheme: dark){
     :root{
@@ -136,15 +139,15 @@
     padding:13px 16px;
     border:none;
     border-radius:9px;
-    background:var(--ink);
-    color:#fff;
+    background:var(--btn-blue);
+    color:var(--btn-blue-text);
     font-family:inherit;
     font-size:.98rem;
     font-weight:600;
     cursor:pointer;
   }
   button.submit:disabled{ opacity:.55; cursor:default; }
-  button.submit:hover:not(:disabled){ background:#183050; }
+  button.submit:hover:not(:disabled){ background:#1C46B0; }
   button.submit, .cal-btn{ transition:transform .1s ease, filter .1s ease; }
   button.submit:active:not(:disabled){ transform:scale(.98); filter:brightness(.95); }
   .cal-btn:active{ transform:scale(.97); }
@@ -185,9 +188,9 @@
     font-size:.9rem;
     font-weight:500;
   }
-  .cal-btn.primary{ background:var(--ink); color:#fff; }
+  .cal-btn.primary{ background:var(--btn-blue); color:var(--btn-blue-text); }
   .cal-btn.secondary{ border:1px solid var(--line); color:var(--ink); }
-  .cal-btn.join{ display:block; width:100%; background:var(--gold); color:var(--ink); font-weight:600; margin-bottom:10px; }
+  .cal-btn.join{ display:block; width:100%; background:var(--gold); color:var(--gold-btn-text); font-weight:600; margin-bottom:10px; }
   .reminder-note{ margin-top:22px; font-size:.87rem; color:var(--ink-soft); }
 
   /* invalid-link state */

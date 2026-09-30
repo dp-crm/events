@@ -21,6 +21,8 @@
     --green:#2F6F4E;
     --red:#B0402F;
     --radius:14px;
+    --btn-blue:#2557D6;
+    --btn-blue-text:#FFFFFF;
   }
   @media (prefers-color-scheme: dark){
     :root{
@@ -98,15 +100,15 @@
     padding:13px 16px;
     border:none;
     border-radius:9px;
-    background:var(--ink);
-    color:#fff;
+    background:var(--btn-blue);
+    color:var(--btn-blue-text);
     font-family:inherit;
     font-size:.98rem;
     font-weight:600;
     cursor:pointer;
   }
   button.submit:disabled{ opacity:.55; cursor:default; }
-  button.submit:hover:not(:disabled){ background:#183050; }
+  button.submit:hover:not(:disabled){ background:#1C46B0; }
   button.submit{ transition:transform .1s ease, filter .1s ease; }
   button.submit:active:not(:disabled){ transform:scale(.98); filter:brightness(.95); }
   @media (prefers-reduced-motion: reduce){
