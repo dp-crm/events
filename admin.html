@@ -269,6 +269,13 @@
   }
   .skeleton.row{ height:56px; border-radius:10px; }
   @keyframes shimmer{ to{ background-position:-200% 0; } }
+  .banner{ background:var(--tick-bg); border:1px solid var(--line); color:var(--ink); border-radius:12px; padding:12px 14px; font-size:.84rem; line-height:1.5; margin:0 0 12px; }
+  .banner code{ font-size:.8rem; }
+  .show-more{ width:100%; justify-content:center; margin:12px 0 4px; padding:11px; }
+  .version-note{ text-align:center; color:var(--ink-soft); font-size:.72rem; opacity:.7; padding:26px 0 90px; }
+  .load-error{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px 20px; text-align:center; }
+  .load-error h3{ margin:0 0 8px; font-family:'Fraunces',serif; font-size:1.1rem; }
+  .load-error p{ margin:0 0 4px; color:var(--ink-soft); font-size:.9rem; line-height:1.5; }
   .list-section{ margin:18px 2px 8px; font-weight:600; letter-spacing:.02em; }
   #eventList .list-section:first-child{ margin-top:4px; }
   .pill{ display:inline-block; margin-top:6px; font-size:.72rem; font-weight:600; padding:2px 8px; border-radius:999px; }
@@ -323,12 +330,16 @@
         </button>
       </div>
     </div>
+    <div id="compatBanner" class="banner hidden" role="status">
+      <strong>Your Apps Script is still an older version.</strong> The app is running in compatibility mode — it works, but slower and without some features. Paste the latest <code>Code.gs</code>, choose Deploy → Manage deployments → ✎ → <em>New version</em>, then reload this page.
+    </div>
     <div id="eventList"></div>
 
     <div id="emptyState" class="empty-state hidden">
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
       <p>No webinars yet. Tap + to add your first one.</p>
     </div>
+    <div id="versionNote" class="version-note"></div>
   </div>
 
   <!-- Detail view -->
@@ -482,22 +493,33 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-
-  // ── App state ──────────────────────────────────
-  // Everything the app shows comes from ONE server call (action=getAll):
-  // every webinar, its full participant list, and the dashboard numbers.
-  // It's also kept on the phone, so the app opens instantly with the last
-  // synced data and quietly refreshes in the background.
-  const LS_KEY = 'wm_admin_data_v2';
+  const APP_VERSION = '3.0';
   const TZ = 'Asia/Kolkata';
-  let appData = null;          // { events:[…], stats:{…}, generatedAt }
+  const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
+  const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
+                                              // older webinars load the moment you open them, so storage and data use never balloon
+  const LS_SUM = 'wm_sum_v3';
+  const LS_ATT = 'wm_att_v3_';
+  const LS_ATT_IDX = 'wm_att_idx_v3';
+
+  // ── How data flows ─────────────────────────────
+  // • SUMMARY (webinars + counts + dashboard numbers): a few KB however big the
+  //   sheet gets. Saved on the phone, so the app opens instantly, then refreshed quietly.
+  // • PARTICIPANTS of each webinar: downloaded once, saved on the phone, and
+  //   downloaded again only for a webinar whose change-token (v) moved.
+  // So syncing costs the same whether there are 300 registrations or 30,000.
+  let summary = null;              // { events:[…], stats:{…}, version }
+  let serverMode = 'v3';           // 'v3', or 'compat' while an old Code.gs is still deployed
   let lastSyncAt = 0;
   let syncInFlight = null;
   let currentEventId = null;
-  let currentEventDetail = null;
   let editingEventId = null;
+  let attLimit = PAGE_SIZE;
   let webinarChartInstance = null;
   let countryChartInstance = null;
+  const attMem = Object.create(null);        // id -> { v, attendees }
+  const attInFlight = Object.create(null);   // id -> Promise
+  const attError = Object.create(null);      // id -> message
 
   function chartPalette(){
     const cs = getComputedStyle(document.documentElement);
@@ -562,23 +584,38 @@
   }
 
   // ── Network ────────────────────────────────────
-  // Apps Script can take a few seconds on a cold start, so allow time, and
-  // retry a failed read once before giving up.
+  // Every failure is classified so the screen can say what is actually wrong
+  // instead of just spinning.
+  class AppError extends Error { constructor(kind, msg){ super(msg); this.kind = kind; } }
+  const GET_TIMEOUT_MS = 25000;
+
   async function fetchJSON(url, options, timeoutMs){
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs || 30000);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs || GET_TIMEOUT_MS);
+    let res;
     try {
-      const res = await fetch(url, Object.assign({}, options, { signal: ctrl.signal }));
-      if (!res.ok) throw new Error('Server responded ' + res.status);
-      return await res.json();
+      res = await fetch(url, Object.assign({}, options, { signal: ctrl.signal }));
+    } catch (err) {
+      if (err.name === 'AbortError') throw new AppError('timeout', 'The server took longer than ' + Math.round((timeoutMs || GET_TIMEOUT_MS) / 1000) + ' seconds to answer.');
+      throw new AppError('network', navigator.onLine === false
+        ? 'You appear to be offline.'
+        : 'No response from the server. Check your internet, and that the Apps Script web app is deployed with access set to “Anyone”.');
     } finally {
       clearTimeout(timer);
     }
+    if (!res.ok) throw new AppError('http', 'The server answered with an error (' + res.status + ').');
+    let text;
+    try { text = await res.text(); } catch (err) { throw new AppError('network', 'The connection dropped while loading.'); }
+    try { return JSON.parse(text); }
+    catch (err) { throw new AppError('notjson', 'The server returned a web page instead of data. This usually means the Apps Script needs to be authorised again, or isn\u2019t deployed as a Web app with access “Anyone”.'); }
   }
   async function apiGet(params){
     const url = WEB_APP_URL + '?' + new URLSearchParams(params).toString();
     try { return await fetchJSON(url); }
-    catch (err) { return await fetchJSON(url); }
+    catch (err) {
+      if (err.kind === 'notjson') throw err;   // retrying a wrong-page answer won't help
+      return await fetchJSON(url);
+    }
   }
   async function apiPost(body){
     return fetchJSON(WEB_APP_URL, {
@@ -587,38 +624,123 @@
       body: JSON.stringify(body)
     }, 45000);
   }
-
-  function saveLocal(){
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ data: appData, at: lastSyncAt })); } catch (err) { /* storage full or blocked — fine */ }
+  function explain(err){
+    if (err && err.kind) return err.message;
+    return 'Something unexpected went wrong (' + ((err && err.message) || 'unknown') + ').';
   }
-  function loadLocal(){
+  const isUnknownAction = (d) => d && d.error && /unknown action/i.test(String(d.error));
+
+  // ── Saved copy on the phone ────────────────────
+  function lsGet(k){ try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v){ try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+  function lsDel(k){ try { localStorage.removeItem(k); } catch (e) { /* ignore */ } }
+  function attIndex(){ try { return JSON.parse(lsGet(LS_ATT_IDX) || '{}'); } catch (e) { return {}; } }
+
+  function saveSummary(){ lsSet(LS_SUM, JSON.stringify({ summary: summary, at: lastSyncAt })); }
+  function loadSummary(){
     try {
-      const o = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
-      if (o && o.data && Array.isArray(o.data.events)) { appData = o.data; lastSyncAt = o.at || 0; return true; }
-    } catch (err) { /* corrupt — ignore */ }
+      const o = JSON.parse(lsGet(LS_SUM) || 'null');
+      if (o && o.summary && Array.isArray(o.summary.events) && o.summary.stats) { summary = o.summary; lastSyncAt = o.at || 0; return true; }
+    } catch (e) { /* corrupt — ignore */ }
     return false;
   }
 
-  function setSyncing(on){ document.body.classList.toggle('syncing', !!on); updateListSub(); }
+  /** Keep a webinar's participant list on the phone. If storage is full, drop the least recently saved lists to make room. */
+  function storeAtt(id, entry){
+    attMem[id] = entry;
+    const val = JSON.stringify(entry);
+    const ix = attIndex();
+    let ok = lsSet(LS_ATT + id, val);
+    if (!ok) {
+      const order = Object.keys(ix).filter(k => k !== id).sort((a, b) => ix[a] - ix[b]);
+      for (let i = 0; i < order.length && !ok; i++) {
+        lsDel(LS_ATT + order[i]); delete ix[order[i]];
+        ok = lsSet(LS_ATT + id, val);
+      }
+    }
+    if (ok) ix[id] = Date.now();
+    lsSet(LS_ATT_IDX, JSON.stringify(ix));    // if even that fails, the list simply isn't kept across restarts — it stays in memory
+  }
+  function loadAtt(id){
+    if (attMem[id]) return attMem[id];
+    try {
+      const o = JSON.parse(lsGet(LS_ATT + id) || 'null');
+      if (o && Array.isArray(o.attendees)) { attMem[id] = o; return o; }
+    } catch (e) { /* corrupt — refetch */ }
+    return null;
+  }
+  function dropAtt(id){
+    delete attMem[id]; lsDel(LS_ATT + id);
+    const ix = attIndex(); delete ix[id]; lsSet(LS_ATT_IDX, JSON.stringify(ix));
+  }
+  function pruneAtt(){
+    const keep = new Set(summary.events.map(e => e.id));
+    const ix = attIndex(); let changed = false;
+    Object.keys(ix).forEach(id => { if (!keep.has(id)) { lsDel(LS_ATT + id); delete attMem[id]; delete ix[id]; changed = true; } });
+    if (changed) lsSet(LS_ATT_IDX, JSON.stringify(ix));
+  }
+  const isFresh = (ev) => { const c = loadAtt(ev.id); return !!c && c.v === ev.v; };
+  function cleanAttendees(list){
+    return (list || []).map(a => ({
+      name: String(a.name == null ? '' : a.name), email: String(a.email == null ? '' : a.email),
+      country: String(a.country == null ? '' : a.country), mobile: String(a.mobile == null ? '' : a.mobile)
+    }));
+  }
+  const findEvent = (id) => summary ? summary.events.find(e => e.id === id) : null;
 
-  /** Fetches the latest data. Returns true if it changed anything on screen. */
-  function syncData(fresh){
+  // ── Syncing the summary ────────────────────────
+  let lastSyncError = null;   // { message } while the most recent sync has failed
+  let slowStage = 0;          // 0 normal · 1 "still working" · 2 "taking long"
+  let slowTimers = [];
+
+  function setSyncing(on){
+    document.body.classList.toggle('syncing', !!on);
+    slowTimers.forEach(clearTimeout); slowTimers = [];
+    slowStage = 0;
+    if (on) {
+      slowTimers.push(setTimeout(() => { slowStage = 1; updateListSub(); }, 6000));
+      slowTimers.push(setTimeout(() => { slowStage = 2; updateListSub(); }, 15000));
+    }
+    updateListSub();
+  }
+
+  async function fetchSummary(fresh){
+    const q = (action) => fresh ? { action: action, fresh: '1' } : { action: action };
+    if (serverMode === 'v3') {
+      const d = await apiGet(q('getSummary'));
+      if (isUnknownAction(d)) serverMode = 'compat';
+      else {
+        if (d.error) throw new AppError('server', String(d.error));
+        if (!Array.isArray(d.events) || !d.stats) throw new AppError('server', 'The server\u2019s answer wasn\u2019t in the expected format. Paste the latest Code.gs and deploy it as a New version.');
+        return d;
+      }
+    }
+    // An older Code.gs is still deployed: run in compatibility mode with the endpoints it does have.
+    const d = await apiGet(q('getEvents'));
+    if (d.error) throw new AppError('server', String(d.error));
+    if (!Array.isArray(d.events)) throw new AppError('server', 'The server\u2019s answer wasn\u2019t in the expected format.');
+    d.events.forEach(e => { e.v = String(e.registered || 0); });
+    return { version: 'old', events: d.events, stats: { totalWebinars: d.events.length, totalRegistrations: d.events.reduce((n, e) => n + (e.registered || 0), 0), totalFeedback: null, perCountry: null } };
+  }
+
+  /** Returns true if anything changed. */
+  function syncSummary(fresh){
     if (syncInFlight && !fresh) return syncInFlight;
     const p = (async () => {
       setSyncing(true);
       try {
-        const params = { action: 'getAll' };
-        if (fresh) params.fresh = '1';
-        const data = await apiGet(params);
-        if (data.error) { toast(data.error); return false; }
-        if (!Array.isArray(data.events)) throw new Error('Unexpected response');
-        const changed = !appData || JSON.stringify(appData.events) !== JSON.stringify(data.events) || JSON.stringify(appData.stats) !== JSON.stringify(data.stats);
-        appData = data;
+        const data = await fetchSummary(fresh);
+        const changed = !summary || summary.version !== data.version ||
+          JSON.stringify(summary.events) !== JSON.stringify(data.events) || JSON.stringify(summary.stats) !== JSON.stringify(data.stats);
+        summary = data;
         lastSyncAt = Date.now();
-        saveLocal();
+        lastSyncError = null;
+        saveSummary();
+        pruneAtt();
         return changed;
       } catch (err) {
-        toast(navigator.onLine === false ? 'You\u2019re offline — showing your last synced data.' : 'Couldn\u2019t reach the server — showing your last synced data.');
+        lastSyncError = { message: explain(err) };
+        if (summary) toast('Couldn\u2019t sync — showing your last saved data.');
         return false;
       } finally {
         if (syncInFlight === p) syncInFlight = null;
@@ -629,31 +751,168 @@
     return p;
   }
 
-  function findEvent(id){ return appData ? appData.events.find(e => e.id === id) : null; }
-  function activeView(){
-    if (!$('detailView').classList.contains('hidden')) return 'detail';
-    if (!$('dashboardView').classList.contains('hidden')) return 'dashboard';
-    return 'list';
+  /** Everything that should happen after a sync: redraw, fetch whatever participant lists went stale. */
+  function afterSync(){
+    updateBanner();
+    renderAll();
+    ensureDetailData();
+    prefetchAttendees();
   }
+
+  // ── Participant lists ──────────────────────────
+  async function fetchOne(id){
+    const d = await apiGet({ action: 'getAttendees', id: id });
+    if (d.error) throw new AppError('server', String(d.error));
+    const ev = findEvent(id);
+    if (!ev) return;
+    const list = cleanAttendees(d.attendees);
+    const v = d.v || String(list.length);
+    if (d.event && d.event.durationMinutes) ev.durationMinutes = d.event.durationMinutes;
+    ev.v = v; ev.registered = list.length;      // this list is at least as new as the summary
+    storeAtt(id, { v: v, attendees: list });
+  }
+  async function fetchBatch(ids){
+    const d = await apiGet({ action: 'getAttendeesBatch', ids: ids.join(',') });
+    if (d.error) throw new AppError('server', String(d.error));
+    Object.keys(d.lists || {}).forEach(id => {
+      const L = d.lists[id], ev = findEvent(id);
+      if (!L || !ev) return;
+      const list = cleanAttendees(L.attendees);
+      ev.v = L.v; ev.registered = list.length;
+      storeAtt(id, { v: L.v, attendees: list });
+    });
+    return d.pending || [];
+  }
+
+  /** Make sure this webinar's participant list is current — jumps the queue when someone opens it. */
+  async function ensureAttendees(id){
+    for (let i = 0; i < 3; i++) {
+      const ev = findEvent(id);
+      if (!ev || isFresh(ev)) return;
+      if (attInFlight[id]) { await attInFlight[id]; continue; }
+      const p = fetchOne(id).finally(() => { if (attInFlight[id] === p) delete attInFlight[id]; });
+      attInFlight[id] = p;
+      try { await p; delete attError[id]; } catch (err) { attError[id] = explain(err); throw err; }
+      return;
+    }
+  }
+
+  function priorityOrder(){
+    const now = Date.now();
+    const up = summary.events.filter(e => endTime(e) >= now).sort((a, b) => new Date(a.dateISO) - new Date(b.dateISO));
+    const past = summary.events.filter(e => endTime(e) < now).sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO));
+    return up.concat(past);
+  }
+
+  /** The webinars worth keeping ready: upcoming first, then most recent, until the budget is used. */
+  function prefetchCandidates(){
+    const out = [];
+    let used = 0;
+    for (const e of priorityOrder()) {
+      if (out.length && used + (e.registered || 0) > PREFETCH_BUDGET) break;
+      used += e.registered || 0;
+      out.push(e);
+    }
+    return out;
+  }
+
+  let prefetching = false;
+  /** In the background, fetch the lists that are missing or out of date — upcoming webinars first, a few at a time. */
+  async function prefetchAttendees(){
+    if (prefetching || !summary) return;
+    prefetching = true;
+    const tried = new Set();
+    try {
+      for (let guard = 0; guard < 60; guard++) {
+        const stale = prefetchCandidates().filter(e => !isFresh(e) && !attInFlight[e.id] && !tried.has(e.id));
+        if (!stale.length) break;
+        if (serverMode === 'v3') {
+          const ids = stale.slice(0, 8).map(e => e.id);
+          ids.forEach(id => tried.add(id));
+          const p = fetchBatch(ids);
+          ids.forEach(id => { attInFlight[id] = p.catch(() => {}); });
+          let pending;
+          try { pending = await p; } catch (err) { break; } finally { ids.forEach(id => { delete attInFlight[id]; }); }
+          pending.forEach(id => tried.delete(id));          // the server held these back to keep the reply small — ask again
+        } else {
+          const id = stale[0].id;
+          tried.add(id);
+          try { await ensureAttendees(id); } catch (err) { break; }
+        }
+        if (activeView() === 'detail') renderDetail();
+      }
+    } finally {
+      prefetching = false;
+    }
+  }
+
+  // ── Views ──────────────────────────────────────
+  // Tracked here, not read back from the page: the view-switch animation applies
+  // the class changes a frame late, so asking the page "which screen is showing?"
+  // right after switching can give the old answer.
+  let currentView = 'list';
+  function activeView(){ return currentView; }
   function renderAll(){
     renderEventList();
     const v = activeView();
     if (v === 'detail') renderDetail();
     else if (v === 'dashboard') renderDashboard();
   }
+  function withViewTransition(fn){
+    if (document.startViewTransition) document.startViewTransition(fn);
+    else fn();
+  }
+  function showView(name){
+    currentView = name;
+    withViewTransition(() => {
+      $('listView').classList.toggle('hidden', name !== 'list');
+      $('detailView').classList.toggle('hidden', name !== 'detail');
+      $('dashboardView').classList.toggle('hidden', name !== 'dashboard');
+      $('fabBtn').classList.toggle('hidden', name !== 'list');   // only where it's used — never covering a participant's buttons
+      window.scrollTo(0, 0);
+    });
+  }
 
   // ── List view ──────────────────────────────────
   function updateListSub(){
     const el = $('listSub');
-    if (!appData) { el.textContent = 'Loading…'; return; }
-    const n = appData.events.length;
     const syncing = document.body.classList.contains('syncing');
-    el.textContent = n + (n === 1 ? ' webinar' : ' webinars') + ' · ' + (syncing ? 'syncing…' : 'synced ' + relTime(lastSyncAt));
+    if (!summary) {
+      el.textContent = syncing
+        ? (slowStage === 0 ? 'Loading…' : slowStage === 1 ? 'Still loading — Google\u2019s server can take a few seconds to wake up…' : 'Taking longer than usual — still trying…')
+        : (lastSyncError ? 'Couldn\u2019t load' : 'Loading…');
+      return;
+    }
+    const n = summary.events.length;
+    const base = n + (n === 1 ? ' webinar' : ' webinars');
+    if (syncing) el.textContent = base + ' · syncing…';
+    else if (lastSyncError) el.textContent = base + ' · last sync failed — tap ↻ to retry';
+    else el.textContent = base + ' · synced ' + relTime(lastSyncAt);
+  }
+  function updateBanner(){
+    const compat = serverMode === 'compat';
+    $('compatBanner').classList.toggle('hidden', !compat);
+    const vs = summary ? (summary.version === 'old' ? 'old version' : 'v' + summary.version) : '…';
+    $('versionNote').textContent = 'App v' + APP_VERSION + ' · Server ' + vs;
   }
 
   function showListSkeleton(){
     $('eventList').innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
     $('emptyState').classList.add('hidden');
+  }
+  // Shown instead of the grey placeholders when there is nothing saved yet and loading failed.
+  function showLoadError(){
+    const list = $('eventList');
+    list.innerHTML = '';
+    $('emptyState').classList.add('hidden');
+    const box = document.createElement('div');
+    box.className = 'load-error';
+    const h = document.createElement('h3'); h.textContent = 'Couldn\u2019t load your webinars';
+    const p = document.createElement('p'); p.textContent = (lastSyncError && lastSyncError.message) || 'Please try again.';
+    const btn = document.createElement('button'); btn.className = 'primary-btn'; btn.textContent = 'Try again';
+    btn.addEventListener('click', async () => { showListSkeleton(); await syncSummary(true); afterSync(); if (!summary) showLoadError(); });
+    box.append(h, p, btn);
+    list.appendChild(box);
   }
 
   function capsuleFor(ev, now){
@@ -687,13 +946,13 @@
 
   function renderEventList(){
     updateListSub();
-    if (!appData) return;
+    if (!summary) return;
     const list = $('eventList');
     list.innerHTML = '';
     const now = Date.now();
-    const upcoming = appData.events.filter(e => endTime(e) >= now).sort((a, b) => new Date(a.dateISO) - new Date(b.dateISO));
-    const past = appData.events.filter(e => endTime(e) < now).sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO));
-    $('emptyState').classList.toggle('hidden', appData.events.length > 0);
+    const upcoming = summary.events.filter(e => endTime(e) >= now).sort((a, b) => new Date(a.dateISO) - new Date(b.dateISO));
+    const past = summary.events.filter(e => endTime(e) < now).sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO));
+    $('emptyState').classList.toggle('hidden', summary.events.length > 0);
     [['Upcoming', upcoming], ['Past', past]].forEach(([label, items]) => {
       if (!items.length) return;
       const h = document.createElement('div');
@@ -705,32 +964,20 @@
   }
 
   $('refreshBtn').addEventListener('click', async () => {
-    await syncData(true);
-    renderAll();
-    toast('Synced with the sheet');
+    if (!summary) showListSkeleton();
+    await syncSummary(true);
+    afterSync();
+    if (!summary) showLoadError();
+    else if (!lastSyncError) toast('Synced with the sheet');
   });
 
   // ── Detail view ────────────────────────────────
-  function withViewTransition(fn){
-    if (document.startViewTransition) document.startViewTransition(fn);
-    else fn();
-  }
-  function showView(name){
-    withViewTransition(() => {
-      $('listView').classList.toggle('hidden', name !== 'list');
-      $('detailView').classList.toggle('hidden', name !== 'detail');
-      $('dashboardView').classList.toggle('hidden', name !== 'dashboard');
-      $('fabBtn').classList.toggle('hidden', name !== 'list');   // only where it's used — never covering a participant's buttons
-      window.scrollTo(0, 0);
-    });
-  }
-
   // Country → dialling code, so numbers saved without one (e.g. 0501234567
   // from UAE) still open the right WhatsApp chat / dial correctly.
   const DIAL = { 'UAE':'971', 'Saudi Arabia':'966', 'Qatar':'974', 'Kuwait':'965', 'Oman':'968', 'Bahrain':'973', 'India':'91', 'USA':'1', 'UK':'44', 'Canada':'1', 'Australia':'61', 'Singapore':'65' };
   function phoneLinks(mobile, country){
     const raw = String(mobile || '').trim();
-    let digits = raw.replace(/[^\d]/g, '');
+    const digits = raw.replace(/[^\d]/g, '');
     if (digits.length < 6) return null;
     let intl;
     if (raw.startsWith('+')) intl = digits;
@@ -785,46 +1032,85 @@
     return row;
   }
 
+  let renderedCount = 0;
+  let matchedList = [];
+  function filteredAttendees(all){
+    const q = $('attendeeSearch').value.trim().toLowerCase();
+    return q ? all.filter(a => (a.name + ' ' + a.email + ' ' + a.mobile + ' ' + a.country).toLowerCase().includes(q)) : all;
+  }
+  function appendRows(ev){
+    const list = $('attendeeList');
+    const old = list.querySelector('.show-more');
+    if (old) old.remove();
+    const frag = document.createDocumentFragment();
+    const upto = Math.min(matchedList.length, attLimit);
+    for (let i = renderedCount; i < upto; i++) frag.appendChild(attendeeRow(matchedList[i], ev));
+    renderedCount = upto;
+    list.appendChild(frag);
+    if (renderedCount < matchedList.length) {
+      const more = document.createElement('button');
+      more.className = 'ghost-btn show-more';
+      more.textContent = 'Show ' + Math.min(PAGE_SIZE, matchedList.length - renderedCount) + ' more (' + (matchedList.length - renderedCount) + ' not shown)';
+      more.addEventListener('click', () => { attLimit += PAGE_SIZE; appendRows(ev); });
+      list.appendChild(more);
+    }
+  }
+
   function renderAttendees(){
-    const ev = currentEventDetail;
+    const ev = findEvent(currentEventId);
     const list = $('attendeeList');
     list.innerHTML = '';
+    renderedCount = 0; matchedList = [];
     if (!ev) return;
-    const q = $('attendeeSearch').value.trim().toLowerCase();
-    const shown = q
-      ? ev.attendees.filter(a => [a.name, a.email, a.mobile, a.country].join(' ').toLowerCase().includes(q))
-      : ev.attendees;
-    if (ev.attendees.length === 0) {
+    const cached = loadAtt(ev.id);
+    if (!cached) {
+      $('attendeeSearch').classList.add('hidden');
+      $('exportBtn').classList.add('hidden');
+      if (attError[ev.id]) {
+        const box = document.createElement('div'); box.className = 'load-error';
+        const p = document.createElement('p'); p.textContent = 'Couldn\u2019t load the participants. ' + attError[ev.id];
+        const b = document.createElement('button'); b.className = 'ghost-btn'; b.style.margin = '10px auto 0'; b.textContent = 'Try again';
+        b.addEventListener('click', () => { delete attError[ev.id]; renderAttendees(); ensureDetailData(); });
+        box.append(p, b); list.appendChild(box);
+      } else if (ev.registered === 0) {
+        list.innerHTML = '<p class="muted-note">No one has registered yet. Share the link to get sign-ups.</p>';
+      } else {
+        list.innerHTML = '<div class="skeleton row"></div><div class="skeleton row"></div><div class="skeleton row"></div>';
+      }
+      return;
+    }
+    $('attendeeSearch').classList.toggle('hidden', cached.attendees.length < 6);
+    $('exportBtn').classList.toggle('hidden', cached.attendees.length === 0);
+    if (cached.attendees.length === 0) {
       list.innerHTML = '<p class="muted-note">No one has registered yet. Share the link to get sign-ups.</p>';
       return;
     }
-    if (shown.length === 0) {
-      list.innerHTML = '<p class="muted-note">No one matches “' + q.replace(/[<>&]/g, '') + '”.</p>';
+    matchedList = filteredAttendees(cached.attendees);
+    if (matchedList.length === 0) {
+      const q = $('attendeeSearch').value.trim();
+      const p = document.createElement('p'); p.className = 'muted-note'; p.textContent = 'No one matches \u201c' + q + '\u201d.';
+      list.appendChild(p);
       return;
     }
-    const frag = document.createDocumentFragment();
-    shown.forEach(a => frag.appendChild(attendeeRow(a, ev)));
-    list.appendChild(frag);
+    appendRows(ev);
   }
 
   function renderDetail(){
-    if (!appData) {
-      $('attendeeList').innerHTML = '<div class="skeleton row"></div><div class="skeleton row"></div>';
-      return;
-    }
+    if (!summary) return;
     const ev = findEvent(currentEventId);
     if (!ev) {
       toast('That webinar no longer exists.');
       history.replaceState({ view: 'list' }, '', location.pathname);
       showView('list');
+      renderEventList();
       return;
     }
-    currentEventDetail = ev;
     $('dTopic').textContent = ev.topic;
     $('dDate').textContent = fmtIST(ev.dateISO) + ' · ' + formatDuration(ev.durationMinutes);
     $('dConductedBy').textContent = 'Conducted by ' + ev.conductedBy;
     $('dCount').textContent = ev.registered + (ev.registered === 1 ? ' person registered' : ' people registered');
-    $('attendeesLabel').textContent = 'Registered (' + ev.registered + ')';
+    const updating = !isFresh(ev) && !!loadAtt(ev.id) && !attError[ev.id];
+    $('attendeesLabel').textContent = 'Registered (' + ev.registered + ')' + (updating ? ' · updating…' : '');
 
     const linkEl = $('dMeetingLink');
     linkEl.innerHTML = '';
@@ -838,31 +1124,44 @@
     }
     $('dDescription').textContent = ev.description || '';
     $('dDescription').style.display = ev.description ? 'block' : 'none';
-    $('attendeeSearch').classList.toggle('hidden', ev.attendees.length < 6);
-    $('exportBtn').classList.toggle('hidden', ev.attendees.length === 0);
     renderAttendees();
   }
 
-  async function openDetail(id, push){
-    if (push !== false) history.pushState({ view: 'detail', id: id }, '', '#event-' + id);
-    if (currentEventId !== id) $('attendeeSearch').value = '';
-    currentEventId = id;
-    showView('detail');
-    renderDetail();                         // instant, from memory
-    if (!appData || Date.now() - lastSyncAt > 15000) {
-      if (await syncData()) renderAll();    // quietly bring it up to date
-    }
+  /** Fetch this webinar's participants if the saved copy is missing or behind. */
+  async function ensureDetailData(){
+    if (activeView() !== 'detail') return;
+    const id = currentEventId;
+    const ev = findEvent(id);
+    if (!ev || isFresh(ev)) return;
+    delete attError[id];
+    try { await ensureAttendees(id); } catch (err) { /* attError[id] is set; the screen shows it */ }
+    if (currentEventId === id && activeView() === 'detail') renderDetail();
   }
 
-  $('attendeeSearch').addEventListener('input', renderAttendees);
+  function openDetail(id, push){
+    if (push !== false) history.pushState({ view: 'detail', id: id }, '', '#event-' + id);
+    if (currentEventId !== id) { $('attendeeSearch').value = ''; attLimit = PAGE_SIZE; }
+    currentEventId = id;
+    showView('detail');
+    renderDetail();                                    // instant — from the phone
+    ensureDetailData();                                // only goes to the network if this webinar's saved list is behind
+    if (Date.now() - lastSyncAt > 15000) syncSummary().then(changed => { if (changed) afterSync(); });
+  }
+
+  let searchTimer;
+  $('attendeeSearch').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { attLimit = PAGE_SIZE; renderAttendees(); }, 120);
+  });
 
   // Download the participant list as a spreadsheet-friendly CSV.
   $('exportBtn').addEventListener('click', () => {
-    const ev = currentEventDetail;
-    if (!ev) return;
+    const ev = findEvent(currentEventId);
+    const cached = ev && loadAtt(ev.id);
+    if (!cached) return;
     const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
     const lines = [['Name', 'Email', 'Mobile', 'Country'].map(esc).join(',')]
-      .concat(ev.attendees.map(a => [a.name, a.email, a.mobile, a.country].map(esc).join(',')));
+      .concat(cached.attendees.map(a => [a.name, a.email, a.mobile, a.country].map(esc).join(',')));
     const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -894,15 +1193,22 @@
   }
 
   async function renderDashboard(){
-    if (!appData) return;
-    const st = appData.stats;
+    if (!summary) return;
+    const st = summary.stats;
+    if (st.perCountry === null) {                       // old server: the dashboard numbers come from its own endpoint
+      try {
+        const d = await apiGet({ action: 'getDashboard' });
+        if (!d.error) { st.totalFeedback = d.totalFeedback; st.perCountry = d.perCountry || {}; st.totalRegistrations = d.totalRegistrations; }
+      } catch (err) { /* shown as – below */ }
+    }
     $('statWebinars').textContent = st.totalWebinars;
     $('statRegistrations').textContent = st.totalRegistrations;
-    $('statFeedback').textContent = st.totalFeedback;
+    $('statFeedback').textContent = st.totalFeedback == null ? '–' : st.totalFeedback;
 
     // Latest 12 webinars, oldest → newest, so the bars read left to right in time.
-    const perWebinar = appData.events.slice().sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO)).slice(0, 12).reverse();
-    const countries = Object.keys(st.perCountry).sort((a, b) => st.perCountry[b] - st.perCountry[a]);
+    const perWebinar = summary.events.slice().sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO)).slice(0, 12).reverse();
+    const perCountry = st.perCountry || {};
+    const countries = Object.keys(perCountry).sort((a, b) => perCountry[b] - perCountry[a]);
     $('webinarChartEmpty').classList.toggle('hidden', perWebinar.length > 0);
     $('countryChartEmpty').classList.toggle('hidden', countries.length > 0);
 
@@ -931,7 +1237,7 @@
     if (countries.length > 0) {
       countryChartInstance = new Chart($('countryChart'), {
         type: 'bar',
-        data: { labels: countries, datasets: [{ data: countries.map(c => st.perCountry[c]), backgroundColor: countries.map((c, i) => palette[i % palette.length]), borderRadius: 6 }] },
+        data: { labels: countries, datasets: [{ data: countries.map(c => perCountry[c]), backgroundColor: countries.map((c, i) => palette[i % palette.length]), borderRadius: 6 }] },
         options: {
           indexAxis: 'y', maintainAspectRatio: false,
           plugins: { legend: { display: false } },
@@ -941,11 +1247,11 @@
     }
   }
 
-  async function openDashboard(push){
+  function openDashboard(push){
     if (push !== false) history.pushState({ view: 'dashboard' }, '', '#dashboard');
     showView('dashboard');
     renderDashboard();
-    if (Date.now() - lastSyncAt > 15000 && await syncData()) renderAll();
+    if (Date.now() - lastSyncAt > 15000) syncSummary().then(changed => { if (changed) afterSync(); });
   }
 
   $('dashboardBtn').addEventListener('click', () => openDashboard());
@@ -959,11 +1265,11 @@
     else if (state.view === 'dashboard') openDashboard(false);
   });
 
-  $('copyLinkBtn').addEventListener('click', () => shareOrCopyLink(shareUrl(currentEventId), currentEventDetail && currentEventDetail.topic));
-  $('editEventBtn').addEventListener('click', () => { if (currentEventDetail) openEditSheet(currentEventDetail); });
+  $('copyLinkBtn').addEventListener('click', () => { const ev = findEvent(currentEventId); shareOrCopyLink(shareUrl(currentEventId), ev && ev.topic); });
+  $('editEventBtn').addEventListener('click', () => { const ev = findEvent(currentEventId); if (ev) openEditSheet(ev); });
 
   $('deleteEventBtn').addEventListener('click', async () => {
-    const ev = currentEventDetail;
+    const ev = findEvent(currentEventId);
     if (!ev) return;
     if (!confirm('Delete "' + ev.topic + '"?\n\nThis also removes it from your Google Calendar. People who registered stay in your sheet.')) return;
     const btn = $('deleteEventBtn');
@@ -971,13 +1277,13 @@
     try {
       const data = await apiPost({ action: 'deleteEvent', id: ev.id });
       if (data.error) throw new Error(data.error);
-      appData.events = appData.events.filter(e => e.id !== ev.id);
-      appData.stats.totalWebinars = appData.events.length;
-      saveLocal();
-      currentEventDetail = null;
+      summary.events = summary.events.filter(e => e.id !== ev.id);
+      summary.stats.totalWebinars = summary.events.length;
+      dropAtt(ev.id);
+      saveSummary();
       toast('Webinar deleted');
       history.back();                       // returns to the list (updates via popstate)
-      syncData(true).then(changed => { if (changed) renderAll(); });
+      syncSummary().then(changed => { if (changed) afterSync(); });
     } catch (err) {
       toast(err.message || 'Could not delete this webinar');
     } finally {
@@ -1105,7 +1411,7 @@
         // Show the change right away; the background sync confirms it.
         const ev = findEvent(editingEventId);
         if (ev) Object.assign(ev, { topic, conductedBy, dateISO: dateVal.toISOString(), durationMinutes, description, meetingLink });
-        saveLocal();
+        saveSummary();
         hideSheet();
         renderAll();
         toast('Saved — calendar event updated');
@@ -1117,9 +1423,9 @@
         $('shareWaBtn').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent('Join our webinar: ' + topic + '\n' + link), '_blank');
         $('shareCopyBtn').onclick = () => copyText(link);
       }
-      syncData(true).then(changed => { if (changed) renderAll(); });
+      syncSummary().then(changed => { if (changed) afterSync(); });
     } catch (err) {
-      showErr(err.name === 'AbortError' ? 'This is taking unusually long — check the list in a moment before trying again, it may have gone through.' : (err.message || 'Something went wrong.'));
+      showErr(err.name === 'AbortError' || err.kind === 'timeout' ? 'This is taking unusually long — check the list in a moment before trying again, it may have gone through.' : (err.message || 'Something went wrong.'));
       $('createEventBtn').disabled = false;
       $('createEventBtn').textContent = isEdit ? 'Save changes' : 'Schedule webinar';
     }
@@ -1159,8 +1465,8 @@
       refreshing = true;
       indicator.classList.add('spinning');
       indicator.style.height = '44px';
-      await syncData(true);
-      renderAll();
+      await syncSummary(true);
+      afterSync();
       indicator.classList.remove('spinning', 'ready');
       indicator.style.height = '0px';
       refreshing = false;
@@ -1169,8 +1475,8 @@
 
   // Coming back to the app after a while? Refresh quietly.
   document.addEventListener('visibilitychange', async () => {
-    if (document.visibilityState === 'visible' && Date.now() - lastSyncAt > 60000) {
-      if (await syncData()) renderAll();
+    if (document.visibilityState === 'visible' && Date.now() - lastSyncAt > 60000 && summary) {
+      if (await syncSummary()) afterSync();
       else updateListSub();
     }
   });
@@ -1178,10 +1484,12 @@
 
   async function boot(){
     history.replaceState({ view: 'list' }, '', location.pathname);
-    if (loadLocal()) renderEventList();     // instant: last synced data
+    lsDel('wm_admin_data_v2');                   // saved copy from the previous app version
+    if (loadSummary()) { updateBanner(); renderEventList(); }   // instant: what the phone last saved
     else showListSkeleton();
-    await syncData();
-    renderAll();
+    await syncSummary();
+    afterSync();
+    if (!summary) showLoadError();
   }
   boot();
 </script>
