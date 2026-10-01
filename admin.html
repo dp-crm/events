@@ -493,7 +493,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '3.0';
+  const APP_VERSION = '3.1';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -594,7 +594,7 @@
     const timer = setTimeout(() => ctrl.abort(), timeoutMs || GET_TIMEOUT_MS);
     let res;
     try {
-      res = await fetch(url, Object.assign({}, options, { signal: ctrl.signal }));
+      res = await fetch(url, Object.assign({ cache: 'no-store' }, options, { signal: ctrl.signal }));
     } catch (err) {
       if (err.name === 'AbortError') throw new AppError('timeout', 'The server took longer than ' + Math.round((timeoutMs || GET_TIMEOUT_MS) / 1000) + ' seconds to answer.');
       throw new AppError('network', navigator.onLine === false
@@ -749,6 +749,23 @@
     })();
     syncInFlight = p;
     return p;
+  }
+
+  // Checking is cheap (~3 KB), so the app checks constantly instead of rarely: whenever a
+  // webinar or the dashboard is opened, whenever you come back to the app, and every
+  // 30 seconds while it's on screen. A new registration shows up by itself.
+  const MIN_RESYNC_MS = 3000;
+  const POLL_MS = 30000;
+  const totalRegistered = () => summary ? summary.events.reduce((n, e) => n + (e.registered || 0), 0) : 0;
+  function freshenSoon(){
+    if (!summary || syncInFlight || Date.now() - lastSyncAt < MIN_RESYNC_MS) return;
+    const before = totalRegistered();
+    syncSummary().then(changed => {
+      if (!changed) return;
+      afterSync();
+      const gained = totalRegistered() - before;
+      if (gained > 0) toast(gained + (gained === 1 ? ' new registration' : ' new registrations'));
+    });
   }
 
   /** Everything that should happen after a sync: redraw, fetch whatever participant lists went stale. */
@@ -1145,7 +1162,7 @@
     showView('detail');
     renderDetail();                                    // instant — from the phone
     ensureDetailData();                                // only goes to the network if this webinar's saved list is behind
-    if (Date.now() - lastSyncAt > 15000) syncSummary().then(changed => { if (changed) afterSync(); });
+    freshenSoon();                                     // …and quietly check for anyone who registered since
   }
 
   let searchTimer;
@@ -1251,7 +1268,7 @@
     if (push !== false) history.pushState({ view: 'dashboard' }, '', '#dashboard');
     showView('dashboard');
     renderDashboard();
-    if (Date.now() - lastSyncAt > 15000) syncSummary().then(changed => { if (changed) afterSync(); });
+    freshenSoon();
   }
 
   $('dashboardBtn').addEventListener('click', () => openDashboard());
@@ -1473,14 +1490,17 @@
     });
   })();
 
-  // Coming back to the app after a while? Refresh quietly.
-  document.addEventListener('visibilitychange', async () => {
-    if (document.visibilityState === 'visible' && Date.now() - lastSyncAt > 60000 && summary) {
-      if (await syncSummary()) afterSync();
-      else updateListSub();
-    }
+  // Coming back to the app? Check straight away. While it's open, check every 30 seconds.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { freshenSoon(); updateListSub(); }
   });
-  setInterval(() => { if (document.visibilityState === 'visible') updateListSub(); }, 30000);
+  window.addEventListener('focus', freshenSoon);
+  window.addEventListener('online', freshenSoon);
+  setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    freshenSoon();
+    updateListSub();
+  }, POLL_MS);
 
   async function boot(){
     history.replaceState({ view: 'list' }, '', location.pathname);
