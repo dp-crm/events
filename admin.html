@@ -118,7 +118,9 @@
   }
   .capsule .body{ flex:1; min-width:0; }
   .capsule .topic{
-    font-weight:600; font-size:.98rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    font-weight:600; font-size:1rem;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    overflow-wrap:anywhere;
   }
   .capsule .when{ color:var(--ink-soft); font-size:.83rem; margin-top:3px; }
   .capsule .count{
@@ -185,7 +187,7 @@
   .attendee-row .sub{ font-size:.8rem; color:var(--ink-soft); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .attendee-row .actions{ flex:none; display:flex; gap:8px; }
   .round-btn{
-    width:34px; height:34px; border-radius:50%; border:1px solid var(--line);
+    width:40px; height:40px; border-radius:50%; border:1px solid var(--line);
     background:var(--surface); display:flex; align-items:center; justify-content:center;
     text-decoration:none; color:var(--ink);
   }
@@ -258,9 +260,49 @@
     opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:30;
   }
   #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ── Loading, badges, search ─────────────────── */
+  .skeleton{
+    height:74px; border-radius:16px; margin-bottom:10px;
+    background:linear-gradient(90deg, var(--surface) 25%, var(--line) 50%, var(--surface) 75%);
+    background-size:200% 100%; animation:shimmer 1.2s ease-in-out infinite; opacity:.7;
+  }
+  .skeleton.row{ height:56px; border-radius:10px; }
+  @keyframes shimmer{ to{ background-position:-200% 0; } }
+  .list-section{ margin:18px 2px 8px; font-weight:600; letter-spacing:.02em; }
+  #eventList .list-section:first-child{ margin-top:4px; }
+  .pill{ display:inline-block; margin-top:6px; font-size:.72rem; font-weight:600; padding:2px 8px; border-radius:999px; }
+  .pill.live{ background:var(--red); color:#fff; }
+  .pill.soon{ background:var(--tick-bg); color:var(--green); }
+  .muted{ color:var(--ink-soft); font-weight:400; }
+  .muted-note{ color:var(--ink-soft); font-size:.9rem; padding:8px 4px; margin:0; }
+  .attendees-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .ghost-btn.small{ padding:6px 12px; font-size:.8rem; margin-top:12px; }
+  .search-field{ margin:0 0 6px; }
+  .attendee-row .sub{ white-space:normal; overflow-wrap:anywhere; }
+  body.syncing #refreshBtn svg{ animation:pr-spin .9s linear infinite; }
+
+  /* ── Pull to refresh ─────────────────────────── */
+  #pullRefresh{
+    display:flex; align-items:center; justify-content:center;
+    height:0; overflow:hidden;
+    color:var(--ink-soft);
+  }
+  #pullRefresh svg{ display:block; }
+  #pullRefresh.ready{ color:var(--ink); }
+  #pullRefresh.spinning svg{ animation:pr-spin .8s linear infinite; }
+  @keyframes pr-spin{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){
+    #pullRefresh.spinning svg{ animation-duration:1.6s; }
+  }
+
 </style>
 </head>
 <body>
+
+<div id="pullRefresh">
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v6h-6"/></svg>
+</div>
 
 <!-- Main app -->
 <div id="app">
@@ -332,7 +374,14 @@
       </div>
     </div>
 
-    <div class="section-label" id="attendeesLabel">Registered</div>
+    <div class="attendees-head">
+      <div class="section-label" id="attendeesLabel">Registered</div>
+      <button class="ghost-btn small hidden" id="exportBtn" aria-label="Download the participant list as a spreadsheet file">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+        Export
+      </button>
+    </div>
+    <input class="field search-field hidden" id="attendeeSearch" type="search" placeholder="Search name, email or number" autocomplete="off" aria-label="Search participants">
     <div id="attendeeList"></div>
   </div>
 
@@ -381,7 +430,7 @@
       </div>
       <label class="form-label" for="newTopic">Topic</label>
       <input class="field" id="newTopic" placeholder="e.g. GCC NRI Retirement">
-      <label class="form-label">Date &amp; time</label>
+      <label class="form-label">Date &amp; time <span class="muted">(IST)</span></label>
       <div style="display:flex; gap:10px;">
         <input class="field" id="newEventDate" type="date" required style="flex:1.2; min-width:0;">
         <input class="field" id="newEventTime" type="time" required style="flex:1; min-width:0;">
@@ -433,24 +482,26 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  let eventsCache = [];
+
+  // ── App state ──────────────────────────────────
+  // Everything the app shows comes from ONE server call (action=getAll):
+  // every webinar, its full participant list, and the dashboard numbers.
+  // It's also kept on the phone, so the app opens instantly with the last
+  // synced data and quietly refreshes in the background.
+  const LS_KEY = 'wm_admin_data_v2';
+  const TZ = 'Asia/Kolkata';
+  let appData = null;          // { events:[…], stats:{…}, generatedAt }
+  let lastSyncAt = 0;
+  let syncInFlight = null;
   let currentEventId = null;
   let currentEventDetail = null;
   let editingEventId = null;
   let webinarChartInstance = null;
   let countryChartInstance = null;
+
   function chartPalette(){
     const cs = getComputedStyle(document.documentElement);
     return [1,2,3,4,5,6,7,8].map(n => cs.getPropertyValue('--chart-' + n).trim());
-  }
-
-  function toDateValue(d){
-    const pad = (n) => String(n).padStart(2, '0');
-    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-  }
-  function toTimeValue(d){
-    const pad = (n) => String(n).padStart(2, '0');
-    return pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
   function formatDuration(minutes){
     const m = Number(minutes) || 60;
@@ -461,77 +512,202 @@
     return h + (h === 1 ? ' hour ' : ' hours ') + rem + ' minutes';
   }
 
-  // ── Toast ──────────────────────────────────────
+  // All webinar times are IST, matching the emails, reminders and calendar
+  // invites — regardless of which time zone this phone is set to.
+  function istParts(iso){
+    const parts = {};
+    new Intl.DateTimeFormat('en-GB', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' })
+      .formatToParts(new Date(iso)).forEach(p => { parts[p.type] = p.value; });
+    return { date: parts.year + '-' + parts.month + '-' + parts.day, time: parts.hour + ':' + parts.minute };
+  }
+  function fmtIST(iso){
+    const d = new Date(iso);
+    const day = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday:'short', day:'numeric', month:'short', year:'numeric' }).format(d);
+    const time = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour:'numeric', minute:'2-digit', hour12:true }).format(d);
+    return day + ' · ' + time + ' IST';
+  }
+  function endTime(ev){ return new Date(ev.dateISO).getTime() + (Number(ev.durationMinutes) || 60) * 60000; }
+  function relTime(ts){
+    const s = Math.round((Date.now() - ts) / 1000);
+    if (s < 45) return 'just now';
+    const m = Math.round(s / 60);
+    if (m < 60) return m + ' min ago';
+    const h = Math.round(m / 60);
+    if (h < 24) return h + ' hr ago';
+    return Math.round(h / 24) + ' days ago';
+  }
+
+  // ── Toast / sharing ────────────────────────────
   let toastTimer;
   function toast(msg){
     const el = $('toast');
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
   }
-  function copyText(text){
-    navigator.clipboard?.writeText(text).then(() => toast('Link copied')).catch(() => toast('Could not copy'));
-  }
-  function shareOrCopyLink(url, topic){
-    if (navigator.share) {
-      navigator.share({ title: topic || 'Webinar registration', url: url }).catch(() => {});
+  function copyText(text, label){
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => toast((label || 'Link') + ' copied')).catch(() => toast('Could not copy'));
     } else {
-      copyText(url);
+      toast('Could not copy');
     }
   }
-
-  async function boot(){
-    history.replaceState({ view: 'list' }, '', location.pathname);
-    await loadEvents();
-    renderEventList();
+  function shareOrCopyLink(url, topic){
+    if (navigator.share) navigator.share({ title: topic || 'Webinar registration', url: url }).catch(() => {});
+    else copyText(url);
   }
-
-  // ── List view ──────────────────────────────────
-  async function loadEvents(){
-    const res = await fetch(WEB_APP_URL + '?action=getEvents');
-    const data = await res.json();
-    if (data.error) { toast(data.error); return; }
-    eventsCache = data.events;
-  }
-
   function shareUrl(id){
     return location.origin + location.pathname.replace('admin.html', 'register.html') + '?id=' + encodeURIComponent(id);
   }
 
+  // ── Network ────────────────────────────────────
+  // Apps Script can take a few seconds on a cold start, so allow time, and
+  // retry a failed read once before giving up.
+  async function fetchJSON(url, options, timeoutMs){
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs || 30000);
+    try {
+      const res = await fetch(url, Object.assign({}, options, { signal: ctrl.signal }));
+      if (!res.ok) throw new Error('Server responded ' + res.status);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  async function apiGet(params){
+    const url = WEB_APP_URL + '?' + new URLSearchParams(params).toString();
+    try { return await fetchJSON(url); }
+    catch (err) { return await fetchJSON(url); }
+  }
+  async function apiPost(body){
+    return fetchJSON(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    }, 45000);
+  }
+
+  function saveLocal(){
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ data: appData, at: lastSyncAt })); } catch (err) { /* storage full or blocked — fine */ }
+  }
+  function loadLocal(){
+    try {
+      const o = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      if (o && o.data && Array.isArray(o.data.events)) { appData = o.data; lastSyncAt = o.at || 0; return true; }
+    } catch (err) { /* corrupt — ignore */ }
+    return false;
+  }
+
+  function setSyncing(on){ document.body.classList.toggle('syncing', !!on); updateListSub(); }
+
+  /** Fetches the latest data. Returns true if it changed anything on screen. */
+  function syncData(fresh){
+    if (syncInFlight && !fresh) return syncInFlight;
+    const p = (async () => {
+      setSyncing(true);
+      try {
+        const params = { action: 'getAll' };
+        if (fresh) params.fresh = '1';
+        const data = await apiGet(params);
+        if (data.error) { toast(data.error); return false; }
+        if (!Array.isArray(data.events)) throw new Error('Unexpected response');
+        const changed = !appData || JSON.stringify(appData.events) !== JSON.stringify(data.events) || JSON.stringify(appData.stats) !== JSON.stringify(data.stats);
+        appData = data;
+        lastSyncAt = Date.now();
+        saveLocal();
+        return changed;
+      } catch (err) {
+        toast(navigator.onLine === false ? 'You\u2019re offline — showing your last synced data.' : 'Couldn\u2019t reach the server — showing your last synced data.');
+        return false;
+      } finally {
+        if (syncInFlight === p) syncInFlight = null;
+        setSyncing(false);
+      }
+    })();
+    syncInFlight = p;
+    return p;
+  }
+
+  function findEvent(id){ return appData ? appData.events.find(e => e.id === id) : null; }
+  function activeView(){
+    if (!$('detailView').classList.contains('hidden')) return 'detail';
+    if (!$('dashboardView').classList.contains('hidden')) return 'dashboard';
+    return 'list';
+  }
+  function renderAll(){
+    renderEventList();
+    const v = activeView();
+    if (v === 'detail') renderDetail();
+    else if (v === 'dashboard') renderDashboard();
+  }
+
+  // ── List view ──────────────────────────────────
+  function updateListSub(){
+    const el = $('listSub');
+    if (!appData) { el.textContent = 'Loading…'; return; }
+    const n = appData.events.length;
+    const syncing = document.body.classList.contains('syncing');
+    el.textContent = n + (n === 1 ? ' webinar' : ' webinars') + ' · ' + (syncing ? 'syncing…' : 'synced ' + relTime(lastSyncAt));
+  }
+
+  function showListSkeleton(){
+    $('eventList').innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+    $('emptyState').classList.add('hidden');
+  }
+
+  function capsuleFor(ev, now){
+    const el = document.createElement('div');
+    el.className = 'capsule';
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    const body = document.createElement('div'); body.className = 'body';
+    const topic = document.createElement('div'); topic.className = 'topic'; topic.textContent = ev.topic;
+    const when = document.createElement('div'); when.className = 'when'; when.textContent = fmtIST(ev.dateISO);
+    body.append(topic, when);
+    const start = new Date(ev.dateISO).getTime();
+    if (now >= start && now <= endTime(ev)) {
+      const pill = document.createElement('span'); pill.className = 'pill live'; pill.textContent = 'Live now'; body.append(pill);
+    } else if (start > now && start - now < 24 * 3600000) {
+      const pill = document.createElement('span'); pill.className = 'pill soon'; pill.textContent = 'Within 24 hrs'; body.append(pill);
+    }
+    const count = document.createElement('div'); count.className = 'count';
+    count.textContent = ev.registered + ' registered';
+    const share = document.createElement('button');
+    share.className = 'copy-btn';
+    share.title = 'Share link';
+    share.setAttribute('aria-label', 'Share the registration link for ' + ev.topic);
+    share.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.07 0l2-2a5 5 0 0 0-7.07-7.07l-1 1"/><path d="M14 11a5 5 0 0 0-7.07 0l-2 2a5 5 0 0 0 7.07 7.07l1-1"/></svg>';
+    share.addEventListener('click', (e) => { e.stopPropagation(); shareOrCopyLink(shareUrl(ev.id), ev.topic); });
+    el.append(body, count, share);
+    el.addEventListener('click', () => openDetail(ev.id));
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') openDetail(ev.id); });
+    return el;
+  }
+
   function renderEventList(){
+    updateListSub();
+    if (!appData) return;
     const list = $('eventList');
     list.innerHTML = '';
-    $('listSub').textContent = eventsCache.length + (eventsCache.length === 1 ? ' webinar' : ' webinars');
-    $('emptyState').classList.toggle('hidden', eventsCache.length > 0);
-
-    eventsCache.forEach((ev) => {
-      const el = document.createElement('div');
-      el.className = 'capsule';
-      el.innerHTML =
-        '<div class="body">' +
-          '<div class="topic"></div>' +
-          '<div class="when"></div>' +
-        '</div>' +
-        '<div class="count"></div>' +
-        '<button class="copy-btn" title="Share link" aria-label="Share this webinar registration link">' +
-          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.07 0l2-2a5 5 0 0 0-7.07-7.07l-1 1"/><path d="M14 11a5 5 0 0 0-7.07 0l-2 2a5 5 0 0 0 7.07 7.07l1-1"/></svg>' +
-        '</button>';
-      el.querySelector('.topic').textContent = ev.topic;
-      el.querySelector('.when').textContent = ev.dateDisplay;
-      el.querySelector('.count').textContent = ev.registered + (ev.registered === 1 ? ' registered' : ' registered');
-      el.querySelector('.copy-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        shareOrCopyLink(shareUrl(ev.id), ev.topic);
-      });
-      el.addEventListener('click', () => openDetail(ev.id));
-      list.appendChild(el);
+    const now = Date.now();
+    const upcoming = appData.events.filter(e => endTime(e) >= now).sort((a, b) => new Date(a.dateISO) - new Date(b.dateISO));
+    const past = appData.events.filter(e => endTime(e) < now).sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO));
+    $('emptyState').classList.toggle('hidden', appData.events.length > 0);
+    [['Upcoming', upcoming], ['Past', past]].forEach(([label, items]) => {
+      if (!items.length) return;
+      const h = document.createElement('div');
+      h.className = 'section-label list-section';
+      h.textContent = label + ' (' + items.length + ')';
+      list.appendChild(h);
+      items.forEach(ev => list.appendChild(capsuleFor(ev, now)));
     });
   }
 
   $('refreshBtn').addEventListener('click', async () => {
-    await loadEvents();
-    renderEventList();
+    await syncData(true);
+    renderAll();
+    toast('Synced with the sheet');
   });
 
   // ── Detail view ────────────────────────────────
@@ -539,92 +715,166 @@
     if (document.startViewTransition) document.startViewTransition(fn);
     else fn();
   }
-
-  async function openDetail(id, push){
-    if (push !== false) history.pushState({ view: 'detail', id: id }, '', '#event-' + id);
-    currentEventId = id;
+  function showView(name){
     withViewTransition(() => {
-      $('listView').classList.add('hidden');
-      $('dashboardView').classList.add('hidden');
-      $('detailView').classList.remove('hidden');
+      $('listView').classList.toggle('hidden', name !== 'list');
+      $('detailView').classList.toggle('hidden', name !== 'detail');
+      $('dashboardView').classList.toggle('hidden', name !== 'dashboard');
+      $('fabBtn').classList.toggle('hidden', name !== 'list');   // only where it's used — never covering a participant's buttons
+      window.scrollTo(0, 0);
     });
-    $('attendeeList').innerHTML = '<p style="color:var(--ink-soft); font-size:.9rem; padding:8px 4px;">Loading…</p>';
+  }
 
-    const res = await fetch(WEB_APP_URL + '?action=getAttendees&id=' + encodeURIComponent(id));
-    const data = await res.json();
-    if (data.error) { toast(data.error); return; }
+  // Country → dialling code, so numbers saved without one (e.g. 0501234567
+  // from UAE) still open the right WhatsApp chat / dial correctly.
+  const DIAL = { 'UAE':'971', 'Saudi Arabia':'966', 'Qatar':'974', 'Kuwait':'965', 'Oman':'968', 'Bahrain':'973', 'India':'91', 'USA':'1', 'UK':'44', 'Canada':'1', 'Australia':'61', 'Singapore':'65' };
+  function phoneLinks(mobile, country){
+    const raw = String(mobile || '').trim();
+    let digits = raw.replace(/[^\d]/g, '');
+    if (digits.length < 6) return null;
+    let intl;
+    if (raw.startsWith('+')) intl = digits;
+    else if (digits.startsWith('00')) intl = digits.slice(2);
+    else {
+      const local = digits.replace(/^0+/, '');
+      const code = DIAL[country];
+      intl = (code && local.length <= 10) ? code + local : local;
+    }
+    return { tel: '+' + intl, wa: intl };
+  }
 
-    currentEventDetail = data.event;
-    $('dTopic').textContent = data.event.topic;
-    $('dDate').textContent = data.event.dateDisplay + ' · ' + formatDuration(data.event.durationMinutes);
-    $('dConductedBy').textContent = 'Conducted by ' + data.event.conductedBy;
-    $('dCount').textContent = data.attendees.length + (data.attendees.length === 1 ? ' person registered' : ' people registered');
-    $('attendeesLabel').textContent = 'Registered (' + data.attendees.length + ')';
+  const ICONS = {
+    call: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>',
+    mail: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
+    wa: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12.36 7.56L4 20l1.06-4.44A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8.5 10.5c.3 2 2.7 4.4 4.7 4.7.9.1 1.6-.5 1.8-1.2l.1-.5-1.8-1-1 .5c-.6-.3-1.6-1.3-1.9-1.9l.5-1-1-1.8-.5.1c-.7.2-1.3.9-1.2 1.8Z" fill="currentColor" stroke="none"/></svg>'
+  };
+  function actionLink(kind, href, label, external){
+    const a = document.createElement('a');
+    a.className = 'round-btn' + (kind === 'call' ? ' call' : kind === 'wa' ? ' wa' : '');
+    a.href = href;
+    a.title = label;
+    a.setAttribute('aria-label', label);
+    if (external) { a.target = '_blank'; a.rel = 'noopener'; }
+    a.innerHTML = ICONS[kind];
+    return a;
+  }
+
+  // Built with DOM APIs (never innerHTML) because names/emails come from the
+  // public form — a quote or tag in someone's name can't break the page.
+  function attendeeRow(a, ev){
+    const row = document.createElement('div');
+    row.className = 'attendee-row';
+    const who = document.createElement('div'); who.className = 'who';
+    const name = document.createElement('div'); name.className = 'name'; name.textContent = a.name || '(no name)';
+    who.appendChild(name);
+    if (a.email) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = a.email; who.appendChild(s); }
+    const line2 = [a.mobile, a.country && a.country !== 'Unknown' ? a.country : ''].filter(Boolean).join(' · ');
+    if (line2) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = line2; who.appendChild(s); }
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const ph = phoneLinks(a.mobile, a.country);
+    const first = (a.name || '').split(' ')[0] || 'there';
+    if (ph) {
+      actions.appendChild(actionLink('call', 'tel:' + ph.tel, 'Call ' + (a.name || ''), false));
+      const msg = 'Hi ' + first + ', this is regarding the webinar "' + ev.topic + '" on ' + fmtIST(ev.dateISO) + '.';
+      actions.appendChild(actionLink('wa', 'https://wa.me/' + ph.wa + '?text=' + encodeURIComponent(msg), 'WhatsApp ' + (a.name || ''), true));
+    }
+    if (a.email) {
+      actions.appendChild(actionLink('mail', 'mailto:' + a.email + '?subject=' + encodeURIComponent('Regarding: ' + ev.topic) + '&body=' + encodeURIComponent('Hi ' + first + ',\n\n'), 'Email ' + (a.name || ''), false));
+    }
+    row.append(who, actions);
+    return row;
+  }
+
+  function renderAttendees(){
+    const ev = currentEventDetail;
+    const list = $('attendeeList');
+    list.innerHTML = '';
+    if (!ev) return;
+    const q = $('attendeeSearch').value.trim().toLowerCase();
+    const shown = q
+      ? ev.attendees.filter(a => [a.name, a.email, a.mobile, a.country].join(' ').toLowerCase().includes(q))
+      : ev.attendees;
+    if (ev.attendees.length === 0) {
+      list.innerHTML = '<p class="muted-note">No one has registered yet. Share the link to get sign-ups.</p>';
+      return;
+    }
+    if (shown.length === 0) {
+      list.innerHTML = '<p class="muted-note">No one matches “' + q.replace(/[<>&]/g, '') + '”.</p>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    shown.forEach(a => frag.appendChild(attendeeRow(a, ev)));
+    list.appendChild(frag);
+  }
+
+  function renderDetail(){
+    if (!appData) {
+      $('attendeeList').innerHTML = '<div class="skeleton row"></div><div class="skeleton row"></div>';
+      return;
+    }
+    const ev = findEvent(currentEventId);
+    if (!ev) {
+      toast('That webinar no longer exists.');
+      history.replaceState({ view: 'list' }, '', location.pathname);
+      showView('list');
+      return;
+    }
+    currentEventDetail = ev;
+    $('dTopic').textContent = ev.topic;
+    $('dDate').textContent = fmtIST(ev.dateISO) + ' · ' + formatDuration(ev.durationMinutes);
+    $('dConductedBy').textContent = 'Conducted by ' + ev.conductedBy;
+    $('dCount').textContent = ev.registered + (ev.registered === 1 ? ' person registered' : ' people registered');
+    $('attendeesLabel').textContent = 'Registered (' + ev.registered + ')';
 
     const linkEl = $('dMeetingLink');
-    if (data.event.meetingLink) {
-      linkEl.innerHTML = '';
+    linkEl.innerHTML = '';
+    if (ev.meetingLink) {
       const a = document.createElement('a');
-      a.href = data.event.meetingLink;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.style.color = 'inherit';
-      a.textContent = data.event.meetingLink.replace(/^https?:\/\//, '');
+      a.href = ev.meetingLink; a.target = '_blank'; a.rel = 'noopener'; a.style.color = 'inherit';
+      a.textContent = ev.meetingLink.replace(/^https?:\/\//, '');
       linkEl.appendChild(a);
     } else {
       linkEl.textContent = 'No meeting link yet';
     }
-    if (data.event.description) {
-      $('dDescription').textContent = data.event.description;
-      $('dDescription').style.display = 'block';
-    } else {
-      $('dDescription').style.display = 'none';
-    }
-
-    const list = $('attendeeList');
-    list.innerHTML = '';
-    if (data.attendees.length === 0) {
-      list.innerHTML = '<p style="color:var(--ink-soft); font-size:.9rem; padding:8px 4px;">No one has registered yet.</p>';
-      return;
-    }
-    data.attendees.forEach((a) => {
-      const row = document.createElement('div');
-      row.className = 'attendee-row';
-      const digits = (a.mobile || '').replace(/[^\d]/g, '');
-      const telHref = 'tel:' + (a.mobile || '').replace(/\s+/g, '');
-      const msg = encodeURIComponent('Hi ' + a.name + ', this is a reminder about our upcoming webinar on ' + data.event.topic + '.');
-      const mailSubject = encodeURIComponent('Regarding: ' + data.event.topic);
-      const mailBody = encodeURIComponent('Hi ' + a.name + ',\n\n');
-      row.innerHTML =
-        '<div class="who">' +
-          '<div class="name"></div>' +
-          '<div class="sub"></div>' +
-        '</div>' +
-        '<div class="actions">' +
-          (a.mobile ? (
-          '<a class="round-btn call" title="Call" aria-label="Call ' + a.name + '" href="' + telHref + '">' +
-            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>' +
-          '</a>') : '') +
-          '<a class="round-btn" title="Email" aria-label="Email ' + a.name + '" target="_blank" rel="noopener" href="mailto:' + a.email + '?subject=' + mailSubject + '&body=' + mailBody + '">' +
-            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>' +
-          '</a>' +
-          '<a class="round-btn wa" title="WhatsApp" aria-label="Message ' + a.name + ' on WhatsApp" target="_blank" rel="noopener" href="https://wa.me/' + digits + '?text=' + msg + '">' +
-            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12.36 7.56L4 20l1.06-4.44A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8.5 10.5c.3 2 2.7 4.4 4.7 4.7.9.1 1.6-.5 1.8-1.2l.1-.5-1.8-1-1 .5c-.6-.3-1.6-1.3-1.9-1.9l.5-1-1-1.8-.5.1c-.7.2-1.3.9-1.2 1.8Z" fill="currentColor" stroke="none"/></svg>' +
-          '</a>' +
-        '</div>';
-      row.querySelector('.name').textContent = a.name;
-      row.querySelector('.sub').textContent = [a.email, a.mobile].filter(Boolean).join(' · ');
-      list.appendChild(row);
-    });
+    $('dDescription').textContent = ev.description || '';
+    $('dDescription').style.display = ev.description ? 'block' : 'none';
+    $('attendeeSearch').classList.toggle('hidden', ev.attendees.length < 6);
+    $('exportBtn').classList.toggle('hidden', ev.attendees.length === 0);
+    renderAttendees();
   }
+
+  async function openDetail(id, push){
+    if (push !== false) history.pushState({ view: 'detail', id: id }, '', '#event-' + id);
+    if (currentEventId !== id) $('attendeeSearch').value = '';
+    currentEventId = id;
+    showView('detail');
+    renderDetail();                         // instant, from memory
+    if (!appData || Date.now() - lastSyncAt > 15000) {
+      if (await syncData()) renderAll();    // quietly bring it up to date
+    }
+  }
+
+  $('attendeeSearch').addEventListener('input', renderAttendees);
+
+  // Download the participant list as a spreadsheet-friendly CSV.
+  $('exportBtn').addEventListener('click', () => {
+    const ev = currentEventDetail;
+    if (!ev) return;
+    const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const lines = [['Name', 'Email', 'Mobile', 'Country'].map(esc).join(',')]
+      .concat(ev.attendees.map(a => [a.name, a.email, a.mobile, a.country].map(esc).join(',')));
+    const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = ev.topic.replace(/[^\w\- ]+/g, '').trim().slice(0, 60) + ' - participants.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
 
   function goToList(push){
     if (push !== false) history.pushState({ view: 'list' }, '', location.pathname);
-    withViewTransition(() => {
-      $('detailView').classList.add('hidden');
-      $('dashboardView').classList.add('hidden');
-      $('listView').classList.remove('hidden');
-    });
+    showView('list');
+    renderEventList();
   }
   $('backBtn').addEventListener('click', () => history.back());
 
@@ -637,73 +887,53 @@
       const s = document.createElement('script');
       s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
       s.onload = resolve;
-      s.onerror = reject;
+      s.onerror = () => { chartJsPromise = null; reject(new Error('Chart library failed to load')); };
       document.head.appendChild(s);
     });
     return chartJsPromise;
   }
 
-  async function openDashboard(push){
-    if (push !== false) history.pushState({ view: 'dashboard' }, '', '#dashboard');
-    withViewTransition(() => {
-      $('listView').classList.add('hidden');
-      $('detailView').classList.add('hidden');
-      $('dashboardView').classList.remove('hidden');
-    });
+  async function renderDashboard(){
+    if (!appData) return;
+    const st = appData.stats;
+    $('statWebinars').textContent = st.totalWebinars;
+    $('statRegistrations').textContent = st.totalRegistrations;
+    $('statFeedback').textContent = st.totalFeedback;
 
-    const res = await fetch(WEB_APP_URL + '?action=getDashboard');
-    const data = await res.json();
-    if (data.error) { toast(data.error); return; }
+    // Latest 12 webinars, oldest → newest, so the bars read left to right in time.
+    const perWebinar = appData.events.slice().sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO)).slice(0, 12).reverse();
+    const countries = Object.keys(st.perCountry).sort((a, b) => st.perCountry[b] - st.perCountry[a]);
+    $('webinarChartEmpty').classList.toggle('hidden', perWebinar.length > 0);
+    $('countryChartEmpty').classList.toggle('hidden', countries.length > 0);
 
-    // Numbers appear immediately; the charting library only loads now, on
-    // first actual use, so the far more common "just check the list" visits
-    // never pay for it.
-    $('statWebinars').textContent = data.totalWebinars;
-    $('statRegistrations').textContent = data.totalRegistrations;
-    $('statFeedback').textContent = data.totalFeedback;
-
-    await loadChartJs();
+    try { await loadChartJs(); } catch (err) { toast('Charts couldn\u2019t load — the numbers above are still current.'); return; }
+    if (activeView() !== 'dashboard') return;
 
     if (webinarChartInstance) { webinarChartInstance.destroy(); webinarChartInstance = null; }
     if (countryChartInstance) { countryChartInstance.destroy(); countryChartInstance = null; }
-
     const palette = chartPalette();
     const cs = getComputedStyle(document.documentElement);
     const axisColor = cs.getPropertyValue('--ink-soft').trim();
     const gridColor = cs.getPropertyValue('--line').trim();
+    const short = (t) => t.length > 18 ? t.slice(0, 17) + '…' : t;
 
-    $('webinarChartEmpty').classList.toggle('hidden', data.perWebinar.length > 0);
-    if (data.perWebinar.length > 0) {
+    if (perWebinar.length > 0) {
       webinarChartInstance = new Chart($('webinarChart'), {
         type: 'bar',
-        data: {
-          labels: data.perWebinar.map(e => e.topic),
-          datasets: [{ data: data.perWebinar.map(e => e.registered), backgroundColor: palette[0], borderRadius: 6 }]
-        },
+        data: { labels: perWebinar.map(e => short(e.topic)), datasets: [{ data: perWebinar.map(e => e.registered), backgroundColor: palette[0], borderRadius: 6 }] },
         options: {
           maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
+          plugins: { legend: { display: false }, tooltip: { callbacks: { title: (items) => perWebinar[items[0].dataIndex].topic } } },
           scales: { y: { beginAtZero: true, ticks: { precision: 0, color: axisColor }, grid: { color: gridColor } }, x: { ticks: { color: axisColor }, grid: { display: false } } }
         }
       });
     }
-
-    const countries = Object.keys(data.perCountry);
-    $('countryChartEmpty').classList.toggle('hidden', countries.length > 0);
     if (countries.length > 0) {
       countryChartInstance = new Chart($('countryChart'), {
         type: 'bar',
-        data: {
-          labels: countries,
-          datasets: [{
-            data: countries.map(c => data.perCountry[c]),
-            backgroundColor: countries.map((c, i) => palette[i % palette.length]),
-            borderRadius: 6
-          }]
-        },
+        data: { labels: countries, datasets: [{ data: countries.map(c => st.perCountry[c]), backgroundColor: countries.map((c, i) => palette[i % palette.length]), borderRadius: 6 }] },
         options: {
-          indexAxis: 'y',
-          maintainAspectRatio: false,
+          indexAxis: 'y', maintainAspectRatio: false,
           plugins: { legend: { display: false } },
           scales: { x: { beginAtZero: true, ticks: { precision: 0, color: axisColor }, grid: { color: gridColor } }, y: { ticks: { color: axisColor }, grid: { display: false } } }
         }
@@ -711,49 +941,51 @@
     }
   }
 
+  async function openDashboard(push){
+    if (push !== false) history.pushState({ view: 'dashboard' }, '', '#dashboard');
+    showView('dashboard');
+    renderDashboard();
+    if (Date.now() - lastSyncAt > 15000 && await syncData()) renderAll();
+  }
+
   $('dashboardBtn').addEventListener('click', () => openDashboard());
   $('dashboardBackBtn').addEventListener('click', () => history.back());
 
   window.addEventListener('popstate', (e) => {
     const state = e.state;
+    if (!$('addOverlay').classList.contains('hidden')) hideSheet();
     if (!state || state.view === 'list') goToList(false);
     else if (state.view === 'detail') openDetail(state.id, false);
     else if (state.view === 'dashboard') openDashboard(false);
   });
 
   $('copyLinkBtn').addEventListener('click', () => shareOrCopyLink(shareUrl(currentEventId), currentEventDetail && currentEventDetail.topic));
-
-  $('editEventBtn').addEventListener('click', () => {
-    if (!currentEventDetail) return;
-    openEditSheet(currentEventDetail);
-  });
+  $('editEventBtn').addEventListener('click', () => { if (currentEventDetail) openEditSheet(currentEventDetail); });
 
   $('deleteEventBtn').addEventListener('click', async () => {
-    if (!currentEventDetail) return;
-    const sure = confirm('Delete "' + currentEventDetail.topic + '"? This also deletes its Google Calendar event. Registrants and their data are kept.');
-    if (!sure) return;
-
+    const ev = currentEventDetail;
+    if (!ev) return;
+    if (!confirm('Delete "' + ev.topic + '"?\n\nThis also removes it from your Google Calendar. People who registered stay in your sheet.')) return;
     const btn = $('deleteEventBtn');
     btn.disabled = true;
     try {
-      const res = await fetch(WEB_APP_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'deleteEvent', id: currentEventId })
-      });
-      const data = await res.json();
+      const data = await apiPost({ action: 'deleteEvent', id: ev.id });
       if (data.error) throw new Error(data.error);
-
+      appData.events = appData.events.filter(e => e.id !== ev.id);
+      appData.stats.totalWebinars = appData.events.length;
+      saveLocal();
+      currentEventDetail = null;
       toast('Webinar deleted');
-      await loadEvents();
-      goToList();
+      history.back();                       // returns to the list (updates via popstate)
+      syncData(true).then(changed => { if (changed) renderAll(); });
     } catch (err) {
       toast(err.message || 'Could not delete this webinar');
+    } finally {
       btn.disabled = false;
     }
   });
 
-  // ── Add-event sheet (also doubles as the edit sheet) ─────────
+  // ── Add / edit sheet ───────────────────────────
   function resetSheet(){
     editingEventId = null;
     $('sheetTitle').textContent = 'Schedule webinar';
@@ -779,10 +1011,14 @@
     $('addFormPanel').classList.remove('hidden');
     $('sharePanel').classList.add('hidden');
     $('newTopic').value = event.topic;
-    const d = new Date(event.dateISO);
-    $('newEventDate').value = toDateValue(d);
-    $('newEventTime').value = toTimeValue(d);
-    $('newDuration').value = String(event.durationMinutes || 60);
+    const p = istParts(event.dateISO);
+    $('newEventDate').value = p.date;
+    $('newEventTime').value = p.time;
+    const dur = String(event.durationMinutes || 60);
+    if (![...$('newDuration').options].some(o => o.value === dur)) {
+      const o = document.createElement('option'); o.value = dur; o.textContent = formatDuration(dur); $('newDuration').appendChild(o);
+    }
+    $('newDuration').value = dur;
     $('newConductor').value = event.conductedBy;
     $('newDescription').value = event.description || '';
     $('newMeetingLink').value = event.meetingLink || '';
@@ -808,15 +1044,10 @@
     const sheetEl = document.querySelector('#addOverlay .sheet');
     const handle = $('sheetHandle');
     let startY = 0, lastDelta = 0, dragging = false;
-    function start(e){
-      dragging = true;
-      startY = (e.touches ? e.touches[0].clientY : e.clientY);
-      sheetEl.style.transition = 'none';
-    }
+    function start(e){ dragging = true; startY = e.touches[0].clientY; sheetEl.style.transition = 'none'; }
     function move(e){
       if (!dragging) return;
-      const y = (e.touches ? e.touches[0].clientY : e.clientY);
-      lastDelta = Math.max(0, y - startY);
+      lastDelta = Math.max(0, e.touches[0].clientY - startY);
       sheetEl.style.transform = 'translateY(' + lastDelta + 'px)';
     }
     function end(){
@@ -824,7 +1055,7 @@
       dragging = false;
       sheetEl.style.transition = '';
       sheetEl.style.transform = '';
-      if (lastDelta > 120) closeSheetAndRefresh();
+      if (lastDelta > 120) hideSheet();
       lastDelta = 0;
     }
     handle.addEventListener('touchstart', start, { passive: true });
@@ -832,23 +1063,11 @@
     handle.addEventListener('touchend', end);
   })();
 
+  // Closing without saving is instant — nothing to re-download.
   $('fabBtn').addEventListener('click', () => { resetSheet(); showSheet(); });
-  $('closeSheetBtn').addEventListener('click', closeSheetAndRefresh);
-  $('doneSheetBtn').addEventListener('click', closeSheetAndRefresh);
-  $('addOverlay').addEventListener('click', (e) => { if (e.target === $('addOverlay')) closeSheetAndRefresh(); });
-
-  async function closeSheetAndRefresh(){
-    hideSheet();
-    const wasEditing = editingEventId;
-    await loadEvents();
-    if (wasEditing) {
-      openDetail(wasEditing, false);
-    } else {
-      $('detailView').classList.add('hidden');
-      $('listView').classList.remove('hidden');
-      renderEventList();
-    }
-  }
+  $('closeSheetBtn').addEventListener('click', hideSheet);
+  $('doneSheetBtn').addEventListener('click', hideSheet);
+  $('addOverlay').addEventListener('click', (e) => { if (e.target === $('addOverlay')) hideSheet(); });
 
   $('createEventBtn').addEventListener('click', async () => {
     const topic = $('newTopic').value.trim();
@@ -858,25 +1077,19 @@
     const conductedBy = $('newConductor').value.trim();
     const description = $('newDescription').value.trim();
     const meetingLink = $('newMeetingLink').value.trim();
+    const showErr = (m) => { $('createError').textContent = m; $('createError').style.display = 'block'; };
 
-    if (!topic) {
-      $('createError').textContent = 'Please add a topic.';
-      $('createError').style.display = 'block';
-      return;
-    }
-    if (!dateStr || !timeStr) {
-      $('createError').textContent = 'Please choose both a date and a time.';
-      $('createError').style.display = 'block';
-      return;
-    }
-    const dateVal = new Date(dateStr + 'T' + timeStr);
-    if (isNaN(dateVal.getTime())) {
-      $('createError').textContent = 'That date and time don\u2019t look valid — please check them.';
-      $('createError').style.display = 'block';
-      return;
-    }
+    if (!topic) return showErr('Please add a topic.');
+    if (!dateStr || !timeStr) return showErr('Please choose both a date and a time.');
+    // The time typed is IST — the same zone every email and invite shows.
+    const dateVal = new Date(dateStr + 'T' + timeStr + ':00+05:30');
+    if (isNaN(dateVal.getTime())) return showErr('That date and time don\u2019t look valid — please check them.');
+    if (meetingLink && !/^https?:\/\/\S+$/i.test(meetingLink)) return showErr('The meeting link should start with https://');
 
     const isEdit = !!editingEventId;
+    if (!isEdit && dateVal.getTime() < Date.now() && !confirm('That date and time is in the past. Schedule it anyway?')) return;
+
+    $('createError').style.display = 'none';
     $('createEventBtn').disabled = true;
     $('createEventBtn').textContent = isEdit ? 'Saving…' : 'Scheduling…';
 
@@ -885,29 +1098,28 @@
       : { action: 'createEvent', topic, conductedBy, dateISO: dateVal.toISOString(), durationMinutes, description };
 
     try {
-      const res = await fetch(WEB_APP_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
+      const data = await apiPost(payload);
       if (data.error) throw new Error(data.error);
 
       if (isEdit) {
-        toast('Webinar updated');
-        closeSheetAndRefresh();
-        return;
+        // Show the change right away; the background sync confirms it.
+        const ev = findEvent(editingEventId);
+        if (ev) Object.assign(ev, { topic, conductedBy, dateISO: dateVal.toISOString(), durationMinutes, description, meetingLink });
+        saveLocal();
+        hideSheet();
+        renderAll();
+        toast('Saved — calendar event updated');
+      } else {
+        $('addFormPanel').classList.add('hidden');
+        $('sharePanel').classList.remove('hidden');
+        const link = shareUrl(data.id);
+        $('shareLinkInput').value = link;
+        $('shareWaBtn').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent('Join our webinar: ' + topic + '\n' + link), '_blank');
+        $('shareCopyBtn').onclick = () => copyText(link);
       }
-
-      $('addFormPanel').classList.add('hidden');
-      $('sharePanel').classList.remove('hidden');
-      const link = shareUrl(data.id);
-      $('shareLinkInput').value = link;
-      $('shareWaBtn').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent('Join our webinar: ' + topic + '\n' + link), '_blank');
-      $('shareCopyBtn').onclick = () => copyText(link);
+      syncData(true).then(changed => { if (changed) renderAll(); });
     } catch (err) {
-      $('createError').textContent = err.message || 'Something went wrong.';
-      $('createError').style.display = 'block';
+      showErr(err.name === 'AbortError' ? 'This is taking unusually long — check the list in a moment before trying again, it may have gone through.' : (err.message || 'Something went wrong.'));
       $('createEventBtn').disabled = false;
       $('createEventBtn').textContent = isEdit ? 'Save changes' : 'Schedule webinar';
     }
@@ -917,6 +1129,60 @@
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
+  // ── Pull to refresh ────────────────────────────
+  (function () {
+    const PULL_THRESHOLD = 64, MAX_PULL = 96;
+    const indicator = $('pullRefresh');
+    let startY = 0, pulling = false, refreshing = false;
+    const sheetOpen = () => !$('addOverlay').classList.contains('hidden');
+
+    document.addEventListener('touchstart', (e) => {
+      if (refreshing || sheetOpen() || window.scrollY > 0 || !e.touches.length) { pulling = false; return; }
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!pulling || refreshing || !e.touches.length) return;
+      const dy = e.touches[0].clientY - startY;
+      if (window.scrollY > 0 || dy <= 0) { indicator.style.height = '0px'; indicator.classList.remove('ready'); if (window.scrollY > 0) pulling = false; return; }
+      const h = Math.min(dy * 0.5, MAX_PULL);
+      indicator.style.height = h + 'px';
+      indicator.classList.toggle('ready', h >= PULL_THRESHOLD);
+    }, { passive: true });
+
+    document.addEventListener('touchend', async () => {
+      if (!pulling || refreshing) { pulling = false; return; }
+      pulling = false;
+      const h = parseFloat(indicator.style.height) || 0;
+      if (h < PULL_THRESHOLD) { indicator.style.height = '0px'; indicator.classList.remove('ready'); return; }
+      refreshing = true;
+      indicator.classList.add('spinning');
+      indicator.style.height = '44px';
+      await syncData(true);
+      renderAll();
+      indicator.classList.remove('spinning', 'ready');
+      indicator.style.height = '0px';
+      refreshing = false;
+    });
+  })();
+
+  // Coming back to the app after a while? Refresh quietly.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && Date.now() - lastSyncAt > 60000) {
+      if (await syncData()) renderAll();
+      else updateListSub();
+    }
+  });
+  setInterval(() => { if (document.visibilityState === 'visible') updateListSub(); }, 30000);
+
+  async function boot(){
+    history.replaceState({ view: 'list' }, '', location.pathname);
+    if (loadLocal()) renderEventList();     // instant: last synced data
+    else showListSkeleton();
+    await syncData();
+    renderAll();
+  }
   boot();
 </script>
 </body>

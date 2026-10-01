@@ -219,6 +219,11 @@
       <p>The registration link you followed may be out of date. Please check with the sender for the current link.</p>
     </div>
 
+    <div id="closedState" class="invalid">
+      <h1 style="font-size:1.3rem;" id="closedTitle">Registration has closed</h1>
+      <p>This webinar has already taken place. Please get in touch with the organiser to hear about upcoming sessions.</p>
+    </div>
+
     <form id="regForm" style="display:none;">
       <div class="card-top">
         <p class="wordmark" id="firmName"></p>
@@ -326,6 +331,12 @@
       }
       document.title = data.topic + ' — ' + FIRM_NAME;
       hide($('loadingState'));
+      const endsAt = new Date(data.dateISO).getTime() + (Number(data.durationMinutes) || 60) * 60000;
+      if (Date.now() > endsAt) {
+        $('closedTitle').textContent = 'Registration for “' + data.topic + '” has closed';
+        show($('closedState'));
+        return;
+      }
       $('regForm').style.display = 'block';
     } catch (err) {
       hide($('loadingState'));
@@ -360,7 +371,9 @@
       if (data.error) throw new Error(data.error);
 
       $('regForm').style.display = 'none';
-      $('successCopy').textContent = "We've emailed the details to " + payload.email + '.';
+      $('successCopy').textContent = data.alreadyRegistered
+        ? "You were already registered — we've re-sent the details to " + payload.email + '.'
+        : "We've emailed the details to " + payload.email + '.';
       $('gcalLink').href = data.googleCalendarLink;
       $('icsLink').href = data.icsUrl;
       if (data.event && data.event.meetingLink) {
