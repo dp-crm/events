@@ -271,6 +271,17 @@
   @keyframes shimmer{ to{ background-position:-200% 0; } }
   .banner{ background:var(--tick-bg); border:1px solid var(--line); color:var(--ink); border-radius:12px; padding:12px 14px; font-size:.84rem; line-height:1.5; margin:0 0 12px; }
   .banner code{ font-size:.8rem; }
+  /* Reminder pop-up, banner and per-person "reminded" tick */
+  .remind-banner{ display:block; width:100%; text-align:left; cursor:pointer; font:inherit; background:var(--wa-tint-bg); border-color:var(--wa-tint-border); }
+  .remind-banner strong{ color:var(--wa); }
+  .remind-card{ border:1px solid var(--line); border-radius:14px; padding:14px; margin:0 0 12px; background:var(--surface); }
+  .remind-card .when{ font-size:.78rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--wa); }
+  .remind-card .topic{ font-weight:600; margin:4px 0 2px; }
+  .remind-card .meta{ font-size:.84rem; color:var(--ink-soft); margin-bottom:12px; }
+  .remind-card .row{ display:flex; gap:10px; align-items:center; }
+  .remind-card .row .primary-btn{ flex:1; margin:0; }
+  .attendee-row .tag-ok{ font-size:.78rem; color:var(--wa); margin-top:3px; font-weight:600; }
+  .attendee-row.reminded .round-btn.wa{ opacity:.55; }
   .show-more{ width:100%; justify-content:center; margin:12px 0 4px; padding:11px; }
   .version-note{ text-align:center; color:var(--ink-soft); font-size:.72rem; opacity:.7; padding:26px 0 90px; }
   .load-error{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px 20px; text-align:center; }
@@ -330,6 +341,7 @@
         </button>
       </div>
     </div>
+    <button id="remindBanner" class="banner remind-banner hidden" type="button"></button>
     <div id="compatBanner" class="banner hidden" role="status">
       <strong>Your Apps Script is still an older version.</strong> The app is running in compatibility mode — it works, but slower and without some features. Paste the latest <code>Code.gs</code>, choose Deploy → Manage deployments → ✎ → <em>New version</em>, then reload this page.
     </div>
@@ -385,6 +397,7 @@
       </div>
     </div>
 
+    <div id="remindStrip" class="banner remind-banner hidden" role="status" style="cursor:default;"></div>
     <div class="attendees-head">
       <div class="section-label" id="attendeesLabel">Registered</div>
       <button class="ghost-btn small hidden" id="exportBtn" aria-label="Download the participant list as a spreadsheet file">
@@ -424,6 +437,20 @@
     </div>
   </div>
 
+</div>
+
+<!-- Reminder pop-up -->
+<div id="remindOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3>Time to send reminders</h3>
+      <button id="closeRemindBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted-note" style="margin-bottom:12px;">Open the webinar, tap the green WhatsApp icon next to each person, and press send. Each person is ticked once you've tapped.</p>
+    <div id="remindList"></div>
+    <button class="ghost-btn" id="remindLaterBtn" style="width:100%; justify-content:center;">Later</button>
+  </div>
 </div>
 
 <!-- Add event bottom sheet -->
@@ -493,7 +520,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '3.4';
+  const APP_VERSION = '3.6';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -509,7 +536,7 @@
   //   downloaded again only for a webinar whose change-token (v) moved.
   // So syncing costs the same whether there are 300 registrations or 30,000.
   let summary = null;              // { events:[…], stats:{…}, version }
-  let serverMode = 'v3';           // 'v3', or 'compat' while an old Code.gs is still deployed
+  let serverMode = 'v36';          // 'v36' one-call sync · 'v3' summary + batches (Code.gs 3.0–3.5) · 'compat' (a much older Code.gs)
   let lastSyncAt = 0;
   let syncInFlight = null;
   let currentEventId = null;
@@ -601,33 +628,40 @@
   // Every failure is classified so the screen can say what is actually wrong
   // instead of just spinning.
   class AppError extends Error { constructor(kind, msg){ super(msg); this.kind = kind; } }
-  const GET_TIMEOUT_MS = 25000;
+  const GET_TIMEOUT_MS = 20000;   // a request that hasn't fully arrived by then is abandoned — nothing can hang forever
 
   async function fetchJSON(url, options, timeoutMs){
+    const ms = timeoutMs || GET_TIMEOUT_MS;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs || GET_TIMEOUT_MS);
-    let res;
+    const timer = setTimeout(() => ctrl.abort(), ms);      // stays armed until the reply has been read completely
+    const tooSlow = () => new AppError('timeout', 'The server took longer than ' + Math.round(ms / 1000) + ' seconds to answer.');
     try {
-      res = await fetch(url, Object.assign({ cache: 'no-store' }, options, { signal: ctrl.signal }));
-    } catch (err) {
-      if (err.name === 'AbortError') throw new AppError('timeout', 'The server took longer than ' + Math.round((timeoutMs || GET_TIMEOUT_MS) / 1000) + ' seconds to answer.');
-      throw new AppError('network', navigator.onLine === false
-        ? 'You appear to be offline.'
-        : 'No response from the server. Check your internet, and that the Apps Script web app is deployed with access set to “Anyone”.');
+      let res;
+      try {
+        res = await fetch(url, Object.assign({ cache: 'no-store' }, options, { signal: ctrl.signal }));
+      } catch (err) {
+        if (err.name === 'AbortError') throw tooSlow();
+        throw new AppError('network', navigator.onLine === false
+          ? 'You appear to be offline.'
+          : 'No response from the server. Check your internet, and that the Apps Script web app is deployed with access set to \u201cAnyone\u201d.');
+      }
+      if (!res.ok) throw new AppError('http', 'The server answered with an error (' + res.status + ').');
+      let text;
+      try { text = await res.text(); }
+      catch (err) { throw ctrl.signal.aborted ? tooSlow() : new AppError('network', 'The connection dropped while loading.'); }
+      try { return JSON.parse(text); }
+      catch (err) { throw new AppError('notjson', 'The server returned a web page instead of data. This usually means the Apps Script needs to be authorised again, or isn\u2019t deployed as a Web app with access \u201cAnyone\u201d.'); }
     } finally {
       clearTimeout(timer);
     }
-    if (!res.ok) throw new AppError('http', 'The server answered with an error (' + res.status + ').');
-    let text;
-    try { text = await res.text(); } catch (err) { throw new AppError('network', 'The connection dropped while loading.'); }
-    try { return JSON.parse(text); }
-    catch (err) { throw new AppError('notjson', 'The server returned a web page instead of data. This usually means the Apps Script needs to be authorised again, or isn\u2019t deployed as a Web app with access “Anyone”.'); }
   }
   async function apiGet(params){
     const url = WEB_APP_URL + '?' + new URLSearchParams(params).toString();
     try { return await fetchJSON(url); }
     catch (err) {
-      if (err.kind === 'notjson') throw err;   // retrying a wrong-page answer won't help
+      // Only a quick failure (a dropped connection) is worth one immediate retry. A slow server or a wrong page is not:
+      // retrying would just double the wait. The next background check tries again by itself.
+      if (err.kind !== 'network' && err.kind !== 'http') throw err;
       return await fetchJSON(url);
     }
   }
@@ -718,8 +752,23 @@
     updateListSub();
   }
 
+  /** What this phone already holds, so the server sends only what changed: "id~token,id~token…", or "*" on the very first launch. */
+  function buildHave(){
+    if (!summary) return '*';
+    return prefetchCandidates().map(e => { const c = loadAtt(e.id); return e.id + '~' + (c ? c.v : ''); }).join(',');
+  }
+
   async function fetchSummary(fresh){
-    const q = (action) => fresh ? { action: action, fresh: '1' } : { action: action };
+    const q = (action, extra) => Object.assign({ action: action }, extra || {}, fresh ? { fresh: '1' } : {});
+    if (serverMode === 'v36') {
+      const d = await apiGet(q('sync', { have: buildHave() }));
+      if (isUnknownAction(d)) serverMode = 'v3';           // Code.gs 3.0–3.5: no combined call — use summary + batches
+      else {
+        if (d.error) throw new AppError('server', String(d.error));
+        if (!Array.isArray(d.events) || !d.stats) throw new AppError('server', 'The server\u2019s answer wasn\u2019t in the expected format. Paste the latest Code.gs and deploy it as a New version.');
+        return d;
+      }
+    }
     if (serverMode === 'v3') {
       const d = await apiGet(q('getSummary'));
       if (isUnknownAction(d)) serverMode = 'compat';
@@ -737,28 +786,52 @@
     return { version: 'old', events: d.events, stats: { totalWebinars: d.events.length, totalRegistrations: d.events.reduce((n, e) => n + (e.registered || 0), 0), totalFeedback: null, perCountry: null } };
   }
 
-  /** Returns true if anything changed. */
-  function syncSummary(fresh){
+  /** Save the participant lists that arrived inside the sync reply. Returns how many. */
+  function applyLists(lists){
+    let n = 0;
+    Object.keys(lists || {}).forEach(id => {
+      const L = lists[id], ev = findEvent(id);
+      if (!L || !ev) return;
+      const list = cleanAttendees(L.attendees);
+      ev.v = L.v; ev.registered = list.length;
+      storeAtt(id, { v: L.v, attendees: list });
+      n++;
+    });
+    return n;
+  }
+
+  let syncStartedAt = 0;
+  let lastSyncInfo = null;        // { total: ms the whole sync took, server: ms the server spent }
+  /** Returns true if anything changed. `quiet` = a background check: no spinner, no "syncing…" text, no error pop-up. */
+  function syncSummary(fresh, quiet){
+    // A sync that has been "in flight" for far too long (the phone slept mid-request) must never block the next one.
+    if (syncInFlight && Date.now() - syncStartedAt > 25000) syncInFlight = null;
     if (syncInFlight && !fresh) return syncInFlight;
+    syncStartedAt = Date.now();
+    const started = syncStartedAt;
     const p = (async () => {
-      setSyncing(true);
+      if (!quiet) setSyncing(true);
       try {
         const data = await fetchSummary(fresh);
-        const changed = !summary || summary.version !== data.version ||
+        const lists = data.lists; delete data.lists; delete data.pending;
+        let changed = !summary || summary.version !== data.version ||
           JSON.stringify(summary.events) !== JSON.stringify(data.events) || JSON.stringify(summary.stats) !== JSON.stringify(data.stats);
         summary = data;
+        if (applyLists(lists)) changed = true;               // the participant lists that came along with it
         lastSyncAt = Date.now();
         lastSyncError = null;
+        lastSyncInfo = { total: Date.now() - started, server: typeof data.ms === 'number' ? data.ms : null };
         saveSummary();
         pruneAtt();
+        updateBanner();
         return changed;
       } catch (err) {
         lastSyncError = { message: explain(err) };
-        if (summary) toast('Couldn\u2019t sync — showing your last saved data.');
+        if (summary && !quiet) toast('Couldn\u2019t sync — showing your last saved data.');
         return false;
       } finally {
         if (syncInFlight === p) syncInFlight = null;
-        setSyncing(false);
+        if (!quiet) setSyncing(false); else updateListSub();
       }
     })();
     syncInFlight = p;
@@ -774,7 +847,7 @@
   function freshenSoon(){
     if (!summary || syncInFlight || Date.now() - lastSyncAt < MIN_RESYNC_MS) return;
     const before = totalRegistered();
-    syncSummary().then(changed => {
+    syncSummary(false, true).then(changed => {
       if (!changed) return;
       afterSync();
       const gained = totalRegistered() - before;
@@ -786,6 +859,7 @@
   function afterSync(){
     updateBanner();
     renderAll();
+    refreshReminders(true);
     ensureDetailData();
     prefetchAttendees();
   }
@@ -857,7 +931,7 @@
       for (let guard = 0; guard < 60; guard++) {
         const stale = prefetchCandidates().filter(e => !isFresh(e) && !attInFlight[e.id] && !tried.has(e.id));
         if (!stale.length) break;
-        if (serverMode === 'v3') {
+        if (serverMode !== 'compat') {                   // batches: several webinars per request (v36 and v3 servers both have them)
           const ids = stale.slice(0, 8).map(e => e.id);
           ids.forEach(id => tried.add(id));
           const p = fetchBatch(ids);
@@ -871,6 +945,7 @@
           try { await ensureAttendees(id); } catch (err) { break; }
         }
         if (activeView() === 'detail') renderDetail();
+        refreshReminders(true);                       // participants have arrived — a reminder may now be due
       }
     } finally {
       prefetching = false;
@@ -916,7 +991,7 @@
     }
     const n = summary.events.length;
     const base = n + (n === 1 ? ' webinar' : ' webinars');
-    if (syncing) el.textContent = base + ' · syncing…';
+    if (syncing) el.textContent = slowStage >= 1 ? base + ' · syncing… slow connection — your saved data is shown' : base + ' · syncing…';
     else if (lastSyncError) el.textContent = base + ' · last sync failed — tap ↻ to retry';
     else el.textContent = base + ' · synced ' + relTime(lastSyncAt);
   }
@@ -924,7 +999,10 @@
     const compat = serverMode === 'compat';
     $('compatBanner').classList.toggle('hidden', !compat);
     const vs = summary ? (summary.version === 'old' ? 'old version' : 'v' + summary.version) : '…';
-    $('versionNote').textContent = 'App v' + APP_VERSION + ' · Server ' + vs;
+    const t = lastSyncInfo
+      ? ' · last sync ' + (lastSyncInfo.total / 1000).toFixed(1) + ' s' + (lastSyncInfo.server != null ? ' (server ' + (lastSyncInfo.server / 1000).toFixed(1) + ' s)' : '')
+      : '';
+    $('versionNote').textContent = 'App v' + APP_VERSION + ' · Server ' + vs + t;
   }
 
   function showListSkeleton(){
@@ -1037,6 +1115,190 @@
     return a;
   }
 
+  // ── The message drafted for each participant (WhatsApp / email buttons) ──────────────
+  const ORGANISER_NAME = 'Arjun K T M';
+  // Same country → time zone rules as the automated emails (Code.gs), so a draft reads exactly like them.
+  const COUNTRY_TIME = {
+    'UAE': ['Asia/Dubai', 'UAE time'], 'Saudi Arabia': ['Asia/Riyadh', 'Saudi Arabia time'], 'Qatar': ['Asia/Qatar', 'Qatar time'],
+    'Kuwait': ['Asia/Kuwait', 'Kuwait time'], 'Oman': ['Asia/Muscat', 'Oman time'], 'Bahrain': ['Asia/Bahrain', 'Bahrain time'],
+    'USA': ['America/New_York', 'US Eastern time'], 'UK': ['Europe/London', 'UK time'], 'Canada': ['America/Toronto', 'Eastern time'],
+    'Australia': ['Australia/Sydney', 'Sydney time'], 'Singapore': ['Asia/Singapore', 'Singapore time']
+  };
+  const COUNTRY_ALIASES = {
+    'united arab emirates': 'UAE', 'emirates': 'UAE', 'dubai': 'UAE', 'abu dhabi': 'UAE', 'sharjah': 'UAE',
+    'ksa': 'Saudi Arabia', 'saudi': 'Saudi Arabia', 'kingdom of saudi arabia': 'Saudi Arabia',
+    'united states': 'USA', 'united states of america': 'USA', 'us': 'USA', 'america': 'USA',
+    'united kingdom': 'UK', 'england': 'UK', 'britain': 'UK', 'great britain': 'UK'
+  };
+  function zoneParts(date, tz){
+    const p = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+      .formatToParts(date).forEach(x => { p[x.type] = x.value; });
+    return p;
+  }
+  /** "Saturday, 17 October 2026 at 8:00 PM UAE time (9:30 PM IST)" — India / Other / unknown: "… at 9:30 PM IST". */
+  function participantTimeText(ev, country){
+    const date = new Date(ev.dateISO);
+    const ist = zoneParts(date, TZ);
+    const full = (p) => p.weekday + ', ' + p.day + ' ' + p.month + ' ' + p.year + ' at ' + p.hour + ':' + p.minute + ' ' + p.dayPeriod;
+    const key = String(country || '').trim().toLowerCase();
+    const name = Object.keys(COUNTRY_TIME).find(n => n.toLowerCase() === key) || COUNTRY_ALIASES[key];
+    if (!name) return full(ist) + ' IST';
+    const local = zoneParts(date, COUNTRY_TIME[name][0]);
+    const sameDay = local.year === ist.year && local.month === ist.month && local.day === ist.day;
+    const istText = sameDay ? ist.hour + ':' + ist.minute + ' ' + ist.dayPeriod + ' IST'
+                            : ist.weekday + ', ' + ist.day + ' ' + ist.month + ' at ' + ist.hour + ':' + ist.minute + ' ' + ist.dayPeriod + ' IST';
+    return full(local) + ' ' + COUNTRY_TIME[name][1] + ' (' + istText + ')';
+  }
+  function reminderDraft(a, ev){
+    return 'Dear ' + (a.name || 'Participant') + '\n\n' +
+      'This is a gentle reminder that the proposed webinar on ' + ev.topic + ' is scheduled on ' + participantTimeText(ev, a.country) + '. We will see you there.\n\n' +
+      (ev.meetingLink ? 'You can click this link and join the webinar: ' + ev.meetingLink + '\n\n' : '') +
+      'Regards\n' + ORGANISER_NAME;
+  }
+
+  // ── Reminders to send: pop-up at 8 AM the day before and on the day ─────────────────
+  // Times are this device's local time. A reminder is "due" from 8:00 AM the day before the
+  // webinar until 8:00 AM on the day (stage "prev"), then from 8:00 AM on the day until the
+  // webinar ends (stage "day"). Tapping the WhatsApp (or email) button next to a person ticks
+  // them for that stage, saved on this phone, so the pop-up knows who is still to be reminded.
+  const REMIND_HOUR = 8;
+  const LS_SENT = 'wm_rem_v1', LS_SKIP = 'wm_remskip_v1';
+  function readJSON(k){ try { return JSON.parse(lsGet(k) || '{}') || {}; } catch (e) { return {}; } }
+  let remSent = readJSON(LS_SENT), remSkip = readJSON(LS_SKIP);
+  (function pruneReminderMemory(){
+    const cutoff = Date.now() - 21 * 86400000; let changed = false;
+    Object.keys(remSent).forEach(k => { if (remSent[k] < cutoff) { delete remSent[k]; changed = true; } });
+    Object.keys(remSkip).forEach(k => { if (remSkip[k] < cutoff) { delete remSkip[k]; changed = true; } });
+    if (changed) { lsSet(LS_SENT, JSON.stringify(remSent)); lsSet(LS_SKIP, JSON.stringify(remSkip)); }
+  })();
+  const whoKey = (a) => String(a.email || a.mobile || a.name || '').trim().toLowerCase();
+  const sentKey = (evId, stage, a) => evId + '|' + stage + '|' + whoKey(a);
+  const STAGE_WORD = { prev: 'tomorrow', day: 'today' };
+
+  /** Which reminder stage is open for this webinar right now: 'prev', 'day', or null. */
+  function activeStage(ev, now){
+    now = now || new Date();
+    const start = new Date(ev.dateISO);
+    if (isNaN(start.getTime()) || now.getTime() >= endTime(ev)) return null;
+    const y = start.getFullYear(), m = start.getMonth(), d = start.getDate();      // the webinar's calendar day on this phone
+    if (now >= new Date(y, m, d, REMIND_HOUR)) return 'day';
+    if (now >= new Date(y, m, d - 1, REMIND_HOUR)) return 'prev';
+    return null;
+  }
+  function remindedCount(ev, stage, list){ return list.filter(a => remSent[sentKey(ev.id, stage, a)]).length; }
+
+  /** Webinars whose reminders are open right now and not yet finished. */
+  function dueReminders(){
+    const out = [];
+    if (!summary) return out;
+    const now = new Date();
+    summary.events.forEach(ev => {
+      const stage = activeStage(ev, now);
+      if (!stage || remSkip[ev.id + '|' + stage]) return;
+      const cached = loadAtt(ev.id);
+      const list = cached ? cached.attendees : [];
+      if (!list.length) return;                                      // nobody to remind (or list not downloaded yet)
+      const done = remindedCount(ev, stage, list);
+      if (done >= list.length) return;
+      out.push({ ev: ev, stage: stage, total: list.length, done: done });
+    });
+    return out.sort((a, b) => new Date(a.ev.dateISO) - new Date(b.ev.dateISO));
+  }
+
+  function renderRemindBanner(due){
+    const b = $('remindBanner');
+    if (!due.length) { b.classList.add('hidden'); return; }
+    const one = due.length === 1 ? due[0] : null;
+    b.innerHTML = '';
+    const strong = document.createElement('strong'); strong.textContent = '\ud83d\udd14 Reminders to send ';
+    b.appendChild(strong);
+    b.appendChild(document.createTextNode(one
+      ? '— ' + STAGE_WORD[one.stage] + '\u2019s webinar \u201c' + one.ev.topic + '\u201d · ' + one.done + ' of ' + one.total + ' done. Tap to open.'
+      : '— ' + due.length + ' webinars. Tap to open.'));
+    b.classList.remove('hidden');
+  }
+
+  function renderRemindStrip(){
+    const strip = $('remindStrip');
+    const ev = findEvent(currentEventId);
+    const stage = ev && activeStage(ev);
+    const cached = ev && loadAtt(ev.id);
+    if (!ev || !stage || remSkip[ev.id + '|' + stage] || !cached || !cached.attendees.length) { strip.classList.add('hidden'); return; }
+    const done = remindedCount(ev, stage, cached.attendees), total = cached.attendees.length;
+    strip.innerHTML = '';
+    const strong = document.createElement('strong'); strong.textContent = '\ud83d\udd14 Reminder due (' + STAGE_WORD[stage] + '): ' + done + ' of ' + total + ' sent. ';
+    strip.appendChild(strong);
+    strip.appendChild(document.createTextNode(done >= total
+      ? 'All done — thank you!'
+      : 'Tap the green WhatsApp icon next to each person and press send.'));
+    if (done < total) {
+      const skip = document.createElement('button'); skip.className = 'ghost-btn small'; skip.style.display = 'inline-flex'; skip.style.marginLeft = '8px'; skip.textContent = 'Mark all done';
+      skip.addEventListener('click', () => { remSkip[ev.id + '|' + stage] = Date.now(); lsSet(LS_SKIP, JSON.stringify(remSkip)); renderRemindStrip(); refreshReminders(); });
+      strip.appendChild(skip);
+    }
+    strip.classList.remove('hidden');
+  }
+
+  function markReminded(ev, stage, a, rowEl){
+    if (!stage) return;
+    remSent[sentKey(ev.id, stage, a)] = Date.now();
+    lsSet(LS_SENT, JSON.stringify(remSent));
+    if (rowEl) setRowReminded(rowEl, true);
+    renderRemindStrip();
+    refreshReminders();
+  }
+  function setRowReminded(rowEl, on){
+    rowEl.classList.toggle('reminded', on);
+    const who = rowEl.querySelector('.who');
+    let tag = who.querySelector('.tag-ok');
+    if (on && !tag) { tag = document.createElement('div'); tag.className = 'tag-ok'; tag.textContent = '\u2713 Reminded'; who.appendChild(tag); }
+    if (!on && tag) tag.remove();
+  }
+
+  // The pop-up. It opens by itself when a reminder is newly due (at launch, after a sync, or when 8:00 arrives while
+  // the app is open); "Later" closes it and the green banner stays on the list until everyone is reminded.
+  const popupShown = new Set();
+  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden'); }
+  function renderRemindPopup(due){
+    const box = $('remindList'); box.innerHTML = '';
+    due.forEach(d => {
+      const card = document.createElement('div'); card.className = 'remind-card';
+      const w = document.createElement('div'); w.className = 'when'; w.textContent = d.stage === 'prev' ? 'Tomorrow' : 'Today';
+      const t = document.createElement('div'); t.className = 'topic'; t.textContent = d.ev.topic;
+      const m = document.createElement('div'); m.className = 'meta'; m.textContent = fmtIST(d.ev.dateISO) + ' · ' + d.done + ' of ' + d.total + ' reminded';
+      const row = document.createElement('div'); row.className = 'row';
+      const go = document.createElement('button'); go.className = 'primary-btn'; go.textContent = 'Send reminders';
+      go.addEventListener('click', () => { hideRemind(); openDetail(d.ev.id); });
+      const skip = document.createElement('button'); skip.className = 'ghost-btn'; skip.textContent = 'Skip';
+      skip.addEventListener('click', () => { remSkip[d.ev.id + '|' + d.stage] = Date.now(); lsSet(LS_SKIP, JSON.stringify(remSkip)); refreshReminders(); if (!dueReminders().length) hideRemind(); else renderRemindPopup(dueReminders()); });
+      row.append(go, skip); card.append(w, t, m, row); box.appendChild(card);
+    });
+  }
+  function showRemind(due){
+    renderRemindPopup(due);
+    $('remindOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('remindOverlay').classList.add('open')));
+  }
+  function hideRemind(){
+    $('remindOverlay').classList.remove('open');
+    setTimeout(() => $('remindOverlay').classList.add('hidden'), 280);
+  }
+  /** Recalculate what's due; update the banner; optionally pop up for anything newly due. */
+  function refreshReminders(popup){
+    const due = dueReminders();
+    renderRemindBanner(due);
+    if (!popup || !due.length || overlayOpen()) return;
+    const fresh = due.filter(d => !popupShown.has(d.ev.id + '|' + d.stage));
+    if (!fresh.length) return;
+    fresh.forEach(d => popupShown.add(d.ev.id + '|' + d.stage));
+    showRemind(due);
+  }
+  $('remindBanner').addEventListener('click', () => { const due = dueReminders(); if (due.length) showRemind(due); });
+  $('closeRemindBtn').addEventListener('click', hideRemind);
+  $('remindLaterBtn').addEventListener('click', hideRemind);
+  $('remindOverlay').addEventListener('click', (e) => { if (e.target === $('remindOverlay')) hideRemind(); });
+
   // Built with DOM APIs (never innerHTML) because names/emails come from the
   // public form — a quote or tag in someone's name can't break the page.
   function attendeeRow(a, ev){
@@ -1049,17 +1311,21 @@
     const line2 = [a.mobile, a.country && a.country !== 'Unknown' ? a.country : ''].filter(Boolean).join(' · ');
     if (line2) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = line2; who.appendChild(s); }
     const actions = document.createElement('div'); actions.className = 'actions';
+    const stage = activeStage(ev);
     const ph = phoneLinks(a.mobile, a.country);
-    const first = (a.name || '').split(' ')[0] || 'there';
     if (ph) {
       actions.appendChild(actionLink('call', 'tel:' + ph.tel, 'Call ' + (a.name || ''), false));
-      const msg = 'Hi ' + first + ', this is regarding the webinar "' + ev.topic + '" on ' + fmtIST(ev.dateISO) + '.';
-      actions.appendChild(actionLink('wa', 'https://wa.me/' + ph.wa + '?text=' + encodeURIComponent(msg), 'WhatsApp ' + (a.name || ''), true));
+      const waBtn = actionLink('wa', 'https://wa.me/' + ph.wa + '?text=' + encodeURIComponent(reminderDraft(a, ev)), 'WhatsApp ' + (a.name || ''), true);
+      waBtn.addEventListener('click', () => markReminded(ev, stage, a, row));
+      actions.appendChild(waBtn);
     }
     if (a.email) {
-      actions.appendChild(actionLink('mail', 'mailto:' + a.email + '?subject=' + encodeURIComponent('Regarding: ' + ev.topic) + '&body=' + encodeURIComponent('Hi ' + first + ',\n\n'), 'Email ' + (a.name || ''), false));
+      const mailBtn = actionLink('mail', 'mailto:' + a.email + '?subject=' + encodeURIComponent('A gentle reminder: ' + ev.topic) + '&body=' + encodeURIComponent(reminderDraft(a, ev).replace(/\n/g, '\r\n')), 'Email ' + (a.name || ''), false);
+      mailBtn.addEventListener('click', () => markReminded(ev, stage, a, row));
+      actions.appendChild(mailBtn);
     }
     row.append(who, actions);
+    if (stage && remSent[sentKey(ev.id, stage, a)]) setRowReminded(row, true);
     return row;
   }
 
@@ -1153,6 +1419,7 @@
     } else {
       linkEl.textContent = 'No meeting link yet';
     }
+    renderRemindStrip();
     $('dDescription').textContent = ev.description || '';
     $('dDescription').style.display = ev.description ? 'block' : 'none';
     renderAttendees();
@@ -1167,6 +1434,7 @@
     delete attError[id];
     try { await ensureAttendees(id); } catch (err) { /* attError[id] is set; the screen shows it */ }
     if (currentEventId === id && activeView() === 'detail') renderDetail();
+    refreshReminders();
   }
 
   function openDetail(id, push){
@@ -1506,7 +1774,7 @@
 
   // Coming back to the app? Check straight away. While it's open, check every 30 seconds.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') { freshenSoon(); updateListSub(); }
+    if (document.visibilityState === 'visible') { freshenSoon(); updateListSub(); refreshReminders(true); }
   });
   window.addEventListener('focus', freshenSoon);
   window.addEventListener('online', freshenSoon);
@@ -1514,12 +1782,13 @@
     if (document.visibilityState !== 'visible') return;
     freshenSoon();
     updateListSub();
+    refreshReminders(true);            // so the pop-up appears the moment 8:00 arrives while the app is open
   }, POLL_MS);
 
   async function boot(){
     history.replaceState({ view: 'list' }, '', location.pathname);
     lsDel('wm_admin_data_v2');                   // saved copy from the previous app version
-    if (loadSummary()) { updateBanner(); renderEventList(); }   // instant: what the phone last saved
+    if (loadSummary()) { updateBanner(); renderEventList(); refreshReminders(true); }   // instant: what the phone last saved, so the pop-up needs no network
     else showListSkeleton();
     await syncSummary();
     afterSync();
