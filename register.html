@@ -270,7 +270,7 @@
           </div>
           <div>
             <label class="form-label" for="mobile">Mobile number</label>
-            <input class="field" id="mobile" type="tel" required autocomplete="tel" placeholder="+971 5x xxx xxxx">
+            <input class="field" id="mobile" type="tel" inputmode="tel" required autocomplete="tel" value="+971 " placeholder="+971 5x xxx xxxx">
           </div>
         </div>
 
@@ -450,6 +450,46 @@
   window.addEventListener('online', function () { if (!confirmed && !loading) { attempt = 0; clearTimeout(retryTimer); loadEvent(); } });
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && !confirmed && !loading && attempt >= RETRY_AFTER.length) { clearTimeout(retryTimer); loadEvent(); } });
 
+  // ── Country → dialling code ─────────────────────────────────────
+  // Picking a country puts its code in the mobile field, so people only type the rest of the number.
+  var DIAL = { 'UAE': '+971', 'Saudi Arabia': '+966', 'Qatar': '+974', 'Kuwait': '+965', 'Oman': '+968', 'Bahrain': '+973',
+               'India': '+91', 'USA': '+1', 'UK': '+44', 'Canada': '+1', 'Australia': '+61', 'Singapore': '+65' };
+  var HINT = { 'UAE': '5x xxx xxxx', 'Saudi Arabia': '5x xxx xxxx', 'Qatar': 'xxxx xxxx', 'Kuwait': 'xxxx xxxx', 'Oman': 'xxxx xxxx',
+               'Bahrain': 'xxxx xxxx', 'India': 'xxxxx xxxxx', 'USA': 'xxx xxx xxxx', 'UK': '7xxx xxxxxx', 'Canada': 'xxx xxx xxxx',
+               'Australia': '4xx xxx xxx', 'Singapore': 'xxxx xxxx' };
+  var currentDial = DIAL[$('country').value] || '';
+  function caretToEnd() { var m = $('mobile'), n = m.value.length; try { m.setSelectionRange(n, n); } catch (e) { /* not supported — harmless */ } }
+
+  $('country').addEventListener('change', function () {
+    var m = $('mobile'), v = m.value.trim(), dial = DIAL[this.value] || '';
+    if (!v || v === currentDial) {
+      m.value = dial ? dial + ' ' : '';                                   // nothing typed yet → just the new code
+    } else if (currentDial && v.indexOf(currentDial) === 0) {
+      m.value = (dial ? dial + ' ' : '+') + v.slice(currentDial.length).trim();   // swap the code, keep the digits they typed
+    }                                                                      // else: they typed their own full number — leave it alone
+    m.placeholder = dial ? dial + ' ' + (HINT[this.value] || '') : '+ country code, then number';
+    currentDial = dial;
+    if (document.activeElement === m || !v) caretToEnd();
+  });
+  // Tapping the field when it only holds the code → cursor goes after it, ready for the number.
+  $('mobile').addEventListener('focus', function () {
+    var m = this;
+    // Only when nothing is selected — if they selected the whole box (to paste or replace a full number), leave it alone.
+    setTimeout(function () { if (m.value.trim() === currentDial && m.selectionStart === m.selectionEnd) caretToEnd(); }, 0);
+  });
+
+  /** "+971 0501234567" → "+971 501234567" (people often type the leading 0 of a local number), and checks a number was entered. */
+  function tidyMobile() {
+    var m = $('mobile'), v = m.value.trim();
+    if (currentDial && v.indexOf(currentDial) === 0) {
+      var rest = v.slice(currentDial.length).trim().replace(/^[\s\-]*0+[\s\-]*(?=\d)/, '');
+      v = currentDial + ' ' + rest;
+      m.value = v;
+      if (rest.replace(/\D/g, '').length < 6) return { ok: false, msg: 'Please enter your mobile number after ' + currentDial + '.' };
+    }
+    return { ok: true, value: v };
+  }
+
   // ── reCAPTCHA (only if configured) loads when the person first touches the form, not on page load ──
   var rcStarted = false;
   function startRecaptcha() {
@@ -481,6 +521,13 @@
   // ── Registration: unchanged flow (Apps Script saves it, sends the confirmation) ──
   $('regForm').addEventListener('submit', async function (e) {
     e.preventDefault();
+    var mob = tidyMobile();
+    if (!mob.ok) {
+      $('errorMsg').textContent = mob.msg;
+      $('errorMsg').style.display = 'block';
+      $('mobile').focus();
+      return;
+    }
     var btn = $('submitBtn');
     btn.disabled = true;
     btn.textContent = 'Registering…';
@@ -491,7 +538,7 @@
       id: eventId,
       name: $('name').value.trim(),
       email: $('email').value.trim(),
-      mobile: $('mobile').value.trim(),
+      mobile: mob.value,
       country: $('country').value,
       recaptchaToken: await getRecaptchaToken()
     };
