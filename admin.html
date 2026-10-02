@@ -493,7 +493,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '3.1';
+  const APP_VERSION = '3.3';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -579,8 +579,22 @@
     if (navigator.share) navigator.share({ title: topic || 'Webinar registration', url: url }).catch(() => {});
     else copyText(url);
   }
-  function shareUrl(id){
-    return location.origin + location.pathname.replace('admin.html', 'register.html') + '?id=' + encodeURIComponent(id);
+  // The registration link carries the webinar's headline details (topic, date, speaker, length) so
+  // the page can show them the instant it opens — it doesn't have to wait for the server. The server
+  // still confirms everything in the background and its answer always wins.
+  //   register.html?id=EVT…&t=Topic&d=202610171600&b=Speaker&m=60      (d = UTC yyyymmddhhmm)
+  function shareUrl(evOrId){
+    const base = location.origin + location.pathname.replace('admin.html', 'register.html');
+    const ev = typeof evOrId === 'string' ? findEvent(evOrId) : evOrId;
+    const id = typeof evOrId === 'string' ? evOrId : (ev && ev.id);
+    let url = base + '?id=' + encodeURIComponent(id);
+    if (!ev || !ev.dateISO) return url;
+    const p = new URLSearchParams();
+    if (ev.topic && ev.topic.length <= 120) p.set('t', ev.topic);
+    p.set('d', new Date(ev.dateISO).toISOString().slice(0, 16).replace(/[-T:]/g, ''));
+    if (ev.conductedBy && ev.conductedBy.length <= 60) p.set('b', ev.conductedBy);
+    if (Number(ev.durationMinutes)) p.set('m', String(Number(ev.durationMinutes)));
+    return url + '&' + p.toString();
   }
 
   // ── Network ────────────────────────────────────
@@ -954,7 +968,7 @@
     share.title = 'Share link';
     share.setAttribute('aria-label', 'Share the registration link for ' + ev.topic);
     share.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.07 0l2-2a5 5 0 0 0-7.07-7.07l-1 1"/><path d="M14 11a5 5 0 0 0-7.07 0l-2 2a5 5 0 0 0 7.07 7.07l1-1"/></svg>';
-    share.addEventListener('click', (e) => { e.stopPropagation(); shareOrCopyLink(shareUrl(ev.id), ev.topic); });
+    share.addEventListener('click', (e) => { e.stopPropagation(); shareOrCopyLink(shareUrl(ev), ev.topic); });
     el.append(body, count, share);
     el.addEventListener('click', () => openDetail(ev.id));
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter') openDetail(ev.id); });
@@ -1282,7 +1296,7 @@
     else if (state.view === 'dashboard') openDashboard(false);
   });
 
-  $('copyLinkBtn').addEventListener('click', () => { const ev = findEvent(currentEventId); shareOrCopyLink(shareUrl(currentEventId), ev && ev.topic); });
+  $('copyLinkBtn').addEventListener('click', () => { const ev = findEvent(currentEventId); shareOrCopyLink(shareUrl(ev || currentEventId), ev && ev.topic); });
   $('editEventBtn').addEventListener('click', () => { const ev = findEvent(currentEventId); if (ev) openEditSheet(ev); });
 
   $('deleteEventBtn').addEventListener('click', async () => {
@@ -1435,7 +1449,7 @@
       } else {
         $('addFormPanel').classList.add('hidden');
         $('sharePanel').classList.remove('hidden');
-        const link = shareUrl(data.id);
+        const link = shareUrl({ id: data.id, topic: topic, conductedBy: conductedBy, dateISO: dateVal.toISOString(), durationMinutes: durationMinutes });
         $('shareLinkInput').value = link;
         $('shareWaBtn').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent('Join our webinar: ' + topic + '\n' + link), '_blank');
         $('shareCopyBtn').onclick = () => copyText(link);

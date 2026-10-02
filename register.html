@@ -7,10 +7,12 @@
 <meta name="theme-color" content="#10213A" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B1420" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icon-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Apps Script is only called AFTER the page is visible; these just open the connections early so that call is quicker. -->
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<script src="config.js" defer></script>
 <style>
+  /* No web fonts: the page uses each phone's own fonts, so there is nothing extra to download and nothing to wait for. */
   :root{
     --paper:#E9EDF1;
     --surface:#FFFFFF;
@@ -47,7 +49,7 @@
   body{
     background:var(--paper);
     color:var(--ink);
-    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
     min-height:100vh;
     display:flex;
     align-items:flex-start;
@@ -76,7 +78,7 @@
     margin:0 0 18px;
   }
   h1{
-    font-family:'Fraunces',serif;
+    font-family:Georgia,'Times New Roman',serif;
     font-weight:600;
     font-size:1.7rem;
     line-height:1.22;
@@ -171,7 +173,7 @@
     margin-bottom:16px;
   }
   .success h2{
-    font-family:'Fraunces',serif;
+    font-family:Georgia,'Times New Roman',serif;
     font-weight:600;
     font-size:1.4rem;
     margin:0 0 8px;
@@ -199,6 +201,14 @@
 
   .loading{ padding:48px 28px; text-align:center; color:var(--ink-soft); font-size:.92rem; }
 
+  /* Placeholders shown only for details we don't have yet (a link with no embedded details) */
+  .sk{ display:block; height:.9em; border-radius:6px; background:var(--line); opacity:.75; animation:sk 1.3s ease-in-out infinite; }
+  @keyframes sk{ 50%{ opacity:.35; } }
+  h1.is-loading{ min-height:2.44em; }
+  h1.is-loading .sk + .sk{ margin-top:.35em; }
+  .meta-row .sk{ display:inline-block; width:11em; max-width:100%; height:1em; vertical-align:middle; }
+  .note{ margin:14px 0 0; font-size:.84rem; color:var(--ink-soft); }
+
   footer{
     text-align:center;
     font-size:.78rem;
@@ -212,8 +222,6 @@
 <div style="width:100%;max-width:440px;">
   <div class="card">
 
-    <div id="loadingState" class="loading">Loading event details…</div>
-
     <div id="invalidState" class="invalid">
       <h1 style="font-size:1.3rem;">This link isn't valid</h1>
       <p>The registration link you followed may be out of date. Please check with the sender for the current link.</p>
@@ -224,21 +232,22 @@
       <p>This webinar has already taken place. Please get in touch with the organiser to hear about upcoming sessions.</p>
     </div>
 
-    <form id="regForm" style="display:none;">
+    <form id="regForm">
       <div class="card-top">
-        <p class="wordmark" id="firmName"></p>
-        <h1 id="topicHeadline"></h1>
+        <p class="wordmark" id="firmName">Wealth Matrix</p>
+        <h1 id="topicHeadline" class="is-loading"><span class="sk" style="width:82%"></span><span class="sk" style="width:48%"></span></h1>
         <div class="meta">
           <div class="meta-row">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-            <span><strong id="dateDisplay"></strong></span>
+            <span><strong id="dateDisplay"><span class="sk"></span></strong></span>
           </div>
           <div class="meta-row">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4"/></svg>
-            <span>Conducted by <strong id="conductedBy"></strong></span>
+            <span>Conducted by <strong id="conductedBy"><span class="sk" style="width:7em"></span></strong></span>
           </div>
         </div>
         <p class="description" id="eventDescription" style="display:none;"></p>
+        <p class="note" id="note" role="status" style="display:none;"></p>
       </div>
 
       <div class="card-bottom">
@@ -288,70 +297,196 @@
   <footer>Wealth Matrix</footer>
 </div>
 
-<script src="config.js"></script>
 <script>
-  const $ = (id) => document.getElementById(id);
-  const params = new URLSearchParams(location.search);
-  const eventId = params.get('id');
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var params = new URLSearchParams(location.search);
+  var eventId = (params.get('id') || '').trim();
+  var TZ = 'Asia/Kolkata';
 
-  let currentEvent = null;
+  // ── SHOW FIRST ──────────────────────────────────────────────────
+  // Everything below runs synchronously while the page is being parsed, before
+  // any network call, so the title/date/speaker are on screen with the first
+  // paint. Details come from (first match wins):
+  //   1. what this device saved from the last confirmed visit,
+  //   2. the details carried in the link itself — links made by the admin app
+  //      look like  register.html?id=EVT…&t=Topic&d=202610171600&b=Speaker&m=60
+  //      (d = UTC yyyymmddhhmm), so every NEW webinar is instant with no setup,
+  //   3. SEED below — optional, for links that were shared before this existed.
+  // The backend then confirms in the background and only then is anything
+  // marked closed/invalid.
+  var SEED = {
+    // 8:00 PM UAE = 9:30 PM IST. Add  topic: '…', conductedBy: '…'  here to make this existing link show everything instantly.
+    'EVTMUMWP0I3': { dateISO: '2026-10-17T16:00:00Z' }
+  };
 
-  const RECAPTCHA_ENABLED = typeof RECAPTCHA_SITE_KEY === 'string' && RECAPTCHA_SITE_KEY.length > 0;
-  if (RECAPTCHA_ENABLED) {
-    const s = document.createElement('script');
-    s.src = 'https://www.google.com/recaptcha/api.js?render=' + RECAPTCHA_SITE_KEY;
+  function clean(v, max) { return String(v == null ? '' : v).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max); }
+  function fromUrl() {
+    var o = {}, t = clean(params.get('t'), 200), b = clean(params.get('b'), 100), d = params.get('d') || '', m = parseInt(params.get('m'), 10);
+    if (t) o.topic = t;
+    if (b) o.conductedBy = b;
+    if (/^\d{12}$/.test(d)) {
+      var iso = d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6, 8) + 'T' + d.slice(8, 10) + ':' + d.slice(10, 12) + ':00Z';
+      if (!isNaN(new Date(iso).getTime())) o.dateISO = iso;
+    }
+    if (m >= 5 && m <= 720) o.durationMinutes = m;
+    return o;
+  }
+  var CACHE_KEY = 'wm_ev_v1_' + eventId;
+  function fromCache() {
+    try { var o = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); return o && o.dateISO ? o : {}; } catch (e) { return {}; }
+  }
+  function saveCache(d) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        topic: d.topic, conductedBy: d.conductedBy, dateISO: d.dateISO,
+        durationMinutes: d.durationMinutes, description: d.description || ''
+      }));
+    } catch (e) { /* private mode / full — fine, it's only a speed-up */ }
+  }
+
+  var ev = Object.assign({}, SEED[eventId] || {}, fromUrl(), fromCache());
+
+  // Same wording the server uses: "Saturday, 17 October 2026 at 9:30 PM IST" — always IST, whatever the phone's time zone.
+  function fmtDate(iso) {
+    try {
+      var d = new Date(iso); if (isNaN(d.getTime())) return '';
+      var p = {};
+      new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+        .formatToParts(d).forEach(function (x) { p[x.type] = x.value; });
+      return p.weekday + ', ' + p.day + ' ' + p.month + ' ' + p.year + ' at ' + p.hour + ':' + p.minute + ' ' + p.dayPeriod + ' IST';
+    } catch (e) { return ''; }
+  }
+  function firm() { return (typeof FIRM_NAME === 'string' && FIRM_NAME) ? FIRM_NAME : 'Wealth Matrix'; }
+
+  function paint() {
+    if (ev.topic) {
+      $('topicHeadline').textContent = ev.topic;
+      $('topicHeadline').classList.remove('is-loading');
+      document.title = ev.topic + ' — ' + firm();
+    }
+    var ds = ev.dateISO ? (fmtDate(ev.dateISO) || ev.dateDisplay || '') : (ev.dateDisplay || '');
+    if (ds) $('dateDisplay').textContent = ds;
+    if (ev.conductedBy) $('conductedBy').textContent = ev.conductedBy;
+    if (ev.description) { $('eventDescription').textContent = ev.description; $('eventDescription').style.display = 'block'; }
+  }
+  function note(text) { var n = $('note'); if (text) { n.textContent = text; n.style.display = 'block'; } else { n.style.display = 'none'; } }
+
+  if (!eventId) {
+    // No id in the link at all is a certain fact, no backend needed.
+    $('regForm').style.display = 'none';
+    $('invalidState').style.display = 'block';
+  } else {
+    paint();
+  }
+
+  // ── …FETCH LATER ────────────────────────────────────────────────
+  var confirmed = false, loading = false, attempt = 0, retryTimer = null;
+  var RETRY_AFTER = [2500, 6000, 15000, 30000];       // then it waits for the connection to return
+  var REQUEST_TIMEOUT = 15000;
+
+  function isNotFound(data) {
+    return data && (data.code === 'NOT_FOUND' || /invalid or has been removed/i.test(String(data.error || '')));
+  }
+  function showInvalid() { $('regForm').style.display = 'none'; $('invalidState').style.display = 'block'; }
+  function showClosed(d) {
+    $('closedTitle').textContent = 'Registration for \u201c' + d.topic + '\u201d has closed';
+    $('regForm').style.display = 'none';
+    $('closedState').style.display = 'block';
+  }
+  function onConfirmed(data) {
+    confirmed = true;
+    ev = Object.assign({}, ev, data);
+    paint();
+    saveCache(data);
+    note('');
+    var endsAt = new Date(data.dateISO).getTime() + (Number(data.durationMinutes) || 60) * 60000;
+    if (Date.now() > endsAt) showClosed(data);       // only the backend can say a webinar is over
+  }
+  function degrade() {
+    // The backend couldn't be reached. Keep the page usable; never claim the link is invalid or closed.
+    if (!ev.topic) {
+      $('topicHeadline').classList.remove('is-loading');
+      $('topicHeadline').textContent = 'Webinar registration';
+    }
+    if (!ev.dateISO) $('dateDisplay').closest('.meta').style.display = 'none';
+    note('We couldn\u2019t load the latest webinar details just now. You can still register below.');
+  }
+  function scheduleRetry() {
+    if (confirmed) return;
+    if (attempt < RETRY_AFTER.length) { retryTimer = setTimeout(loadEvent, RETRY_AFTER[attempt++]); }
+    else degrade();
+  }
+  function loadEvent() {
+    if (confirmed || loading || !eventId) return;
+    if (typeof WEB_APP_URL !== 'string') { scheduleRetry(); return; }   // config.js hasn't arrived — try again shortly
+    loading = true;
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, REQUEST_TIMEOUT);
+    fetch(WEB_APP_URL + '?action=getEvent&id=' + encodeURIComponent(eventId), ctrl ? { signal: ctrl.signal } : {})
+      .then(function (res) { if (!res.ok) throw new Error('http'); return res.text(); })
+      .then(function (text) {
+        var data;
+        try { data = JSON.parse(text); } catch (e) { throw new Error('notjson'); }
+        if (data && data.error) {
+          if (isNotFound(data)) { confirmed = true; showInvalid(); return; }   // the backend itself said so
+          throw new Error('server');                                            // anything else is just a hiccup
+        }
+        onConfirmed(data);
+      })
+      .catch(function () { loading = false; clearTimeout(timer); scheduleRetry(); })
+      .then(function () { loading = false; clearTimeout(timer); });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    // config.js (deferred) has run by now.
+    $('firmName').textContent = firm();
+    if (eventId) paint();
+    // A slow answer must never look like a broken page: after a few seconds, say so quietly.
+    setTimeout(function () { if (!confirmed && !ev.topic) note('Still loading the webinar details — you can register below in the meantime.'); }, 6000);
+    loadEvent();
+  });
+  window.addEventListener('online', function () { if (!confirmed && !loading) { attempt = 0; clearTimeout(retryTimer); loadEvent(); } });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && !confirmed && !loading && attempt >= RETRY_AFTER.length) { clearTimeout(retryTimer); loadEvent(); } });
+
+  // ── reCAPTCHA (only if configured) loads when the person first touches the form, not on page load ──
+  var rcStarted = false;
+  function startRecaptcha() {
+    var key = typeof RECAPTCHA_SITE_KEY === 'string' ? RECAPTCHA_SITE_KEY : '';
+    if (rcStarted || !key) return;
+    rcStarted = true;
+    var s = document.createElement('script');
+    s.src = 'https://www.google.com/recaptcha/api.js?render=' + key;
+    s.async = true;
     document.head.appendChild(s);
   }
-  function getRecaptchaToken(){
-    if (!RECAPTCHA_ENABLED) return Promise.resolve('');
-    return new Promise(function(resolve){
-      grecaptcha.ready(function(){
-        grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'register' }).then(resolve).catch(function(){ resolve(''); });
-      });
+  $('regForm').addEventListener('focusin', startRecaptcha);
+  function getRecaptchaToken() {
+    var key = typeof RECAPTCHA_SITE_KEY === 'string' ? RECAPTCHA_SITE_KEY : '';
+    if (!key) return Promise.resolve('');
+    startRecaptcha();
+    return new Promise(function (resolve) {
+      var tries = 0;
+      (function wait() {
+        if (window.grecaptcha && window.grecaptcha.ready) {
+          window.grecaptcha.ready(function () {
+            window.grecaptcha.execute(key, { action: 'register' }).then(resolve).catch(function () { resolve(''); });
+          });
+        } else if (++tries > 100) { resolve(''); } else { setTimeout(wait, 50); }
+      })();
     });
   }
 
-  function show(el){ el.style.display = el.dataset.flex ? 'flex' : 'block'; }
-  function hide(el){ el.style.display = 'none'; }
-
-  async function loadEvent(){
-    if (!eventId) { hide($('loadingState')); show($('invalidState')); return; }
-    try {
-      const res = await fetch(WEB_APP_URL + '?action=getEvent&id=' + encodeURIComponent(eventId));
-      const data = await res.json();
-      if (data.error) { hide($('loadingState')); show($('invalidState')); return; }
-      currentEvent = data;
-      $('firmName').textContent = FIRM_NAME;
-      $('topicHeadline').textContent = data.topic;
-      $('dateDisplay').textContent = data.dateDisplay;
-      $('conductedBy').textContent = data.conductedBy;
-      if (data.description) {
-        $('eventDescription').textContent = data.description;
-        $('eventDescription').style.display = 'block';
-      }
-      document.title = data.topic + ' — ' + FIRM_NAME;
-      hide($('loadingState'));
-      const endsAt = new Date(data.dateISO).getTime() + (Number(data.durationMinutes) || 60) * 60000;
-      if (Date.now() > endsAt) {
-        $('closedTitle').textContent = 'Registration for “' + data.topic + '” has closed';
-        show($('closedState'));
-        return;
-      }
-      $('regForm').style.display = 'block';
-    } catch (err) {
-      hide($('loadingState'));
-      show($('invalidState'));
-    }
-  }
-
-  $('regForm').addEventListener('submit', async function(e){
+  // ── Registration: unchanged flow (Apps Script saves it, sends the confirmation) ──
+  $('regForm').addEventListener('submit', async function (e) {
     e.preventDefault();
-    const btn = $('submitBtn');
+    var btn = $('submitBtn');
     btn.disabled = true;
     btn.textContent = 'Registering…';
     $('errorMsg').style.display = 'none';
 
-    const payload = {
+    var payload = {
       action: 'register',
       id: eventId,
       name: $('name').value.trim(),
@@ -361,19 +496,24 @@
       recaptchaToken: await getRecaptchaToken()
     };
 
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 45000);
     try {
-      const res = await fetch(WEB_APP_URL, {
+      var res = await fetch(WEB_APP_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: ctrl ? ctrl.signal : undefined
       });
-      const data = await res.json();
+      var text = await res.text();
+      var data;
+      try { data = JSON.parse(text); } catch (x) { throw new Error('The server sent an unexpected reply. Please try again in a moment.'); }
       if (data.error) throw new Error(data.error);
 
       $('regForm').style.display = 'none';
       $('successCopy').textContent = data.alreadyRegistered
-        ? "You were already registered — we've re-sent the details to " + payload.email + '.'
-        : "We've emailed the details to " + payload.email + '.';
+        ? "You were already registered — we're re-sending the details to " + payload.email + '.'
+        : "We're emailing the details to " + payload.email + ' — it should arrive within a minute.';
       $('gcalLink').href = data.googleCalendarLink;
       $('icsLink').href = data.icsUrl;
       if (data.event && data.event.meetingLink) {
@@ -382,14 +522,18 @@
       }
       $('successState').style.display = 'block';
     } catch (err) {
-      $('errorMsg').textContent = err.message || 'Something went wrong. Please try again.';
+      var msg = err && err.message;
+      if (err && err.name === 'AbortError') msg = 'This is taking longer than usual. Please try again — if your registration already went through, we\u2019ll simply re-send your confirmation.';
+      else if (err instanceof TypeError) msg = 'We couldn\u2019t reach the server. Please check your connection and try again.';
+      $('errorMsg').textContent = msg || 'Something went wrong. Please try again.';
       $('errorMsg').style.display = 'block';
       btn.disabled = false;
       btn.textContent = 'Reserve my seat';
+    } finally {
+      clearTimeout(timer);
     }
   });
-
-  loadEvent();
+})();
 </script>
 </body>
 </html>
