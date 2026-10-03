@@ -441,7 +441,60 @@
         onConfirmed(data);
       })
       .catch(function () { loading = false; clearTimeout(timer); scheduleRetry(); })
-      .then(function () { loading = false; clearTimeout(timer); });
+      .then(function () { loading = false; clearTimeout(timer); sendVisit(); });
+  }
+
+  // ── Counting visitors (anonymous) ───────────────────────────────
+  // Once the page is already on screen — and after the webinar lookup has had its turn, so the two never compete — the page tells
+  // the server "someone opened this link" with a random ID kept on this phone, where they seem to have come from, and phone type.
+  // No name, number, email or IP address. It never delays the page, and a failure is silent. Skipped for link-preview robots and
+  // for anyone who has "Do Not Track" / Global Privacy Control switched on.
+  var visitSent = false;
+  function visitorId() {
+    try { var v = localStorage.getItem('wm_vid'); if (v && /^[a-z0-9]{8,40}$/.test(v)) return v; } catch (e) { /* private mode */ }
+    var b = new Uint8Array(12), s = '', i;
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(b); else for (i = 0; i < 12; i++) b[i] = Math.floor(Math.random() * 256);
+    for (i = 0; i < b.length; i++) s += (b[i] % 36).toString(36);
+    try { localStorage.setItem('wm_vid', s); } catch (e) { /* counted as a new visitor next time — unavoidable */ }
+    return s;
+  }
+  function refHost() {
+    try {
+      var h = new URL(document.referrer).hostname.toLowerCase().replace(/^www\./, '');
+      return h && h !== location.hostname ? h.slice(0, 60) : '';
+    } catch (e) { return ''; }
+  }
+  // Which channel: a tag in the link (&s=instagram) wins; otherwise guess from the app the page opened in, then from the referring site.
+  function sourceOf(ua) {
+    var tag = (params.get('s') || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24);
+    if (tag) return tag;
+    if (/instagram/i.test(ua)) return 'instagram';
+    if (/FBAN|FBAV|FB_IAB/i.test(ua)) return 'facebook';
+    if (/LinkedInApp/i.test(ua)) return 'linkedin';
+    if (/Twitter/i.test(ua)) return 'x';
+    var r = refHost();
+    if (/facebook|fb\.com|fb\.me/.test(r)) return 'facebook';
+    if (/instagram/.test(r)) return 'instagram';
+    if (/linkedin|lnkd\.in/.test(r)) return 'linkedin';
+    if (/(^|\.)t\.co$|twitter|(^|\.)x\.com$/.test(r)) return 'x';
+    if (/whatsapp|wa\.me/.test(r)) return 'whatsapp';
+    if (/youtube|youtu\.be/.test(r)) return 'youtube';
+    if (/google/.test(r)) return 'google';
+    return r ? 'referral' : 'direct';
+  }
+  function sendVisit() {
+    if (visitSent || !eventId || typeof WEB_APP_URL !== 'string') return;
+    visitSent = true;
+    try {
+      var ua = navigator.userAgent || '';
+      if (/bot|crawl|spider|preview|facebookexternalhit|slurp|lighthouse|pagespeed|gtmetrix|headless/i.test(ua)) return;
+      if (navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl) return;
+      var q = new URLSearchParams({
+        action: 'visit', id: eventId, vid: visitorId(), src: sourceOf(ua),
+        dev: /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Android/.test(ua) ? 'android' : 'desktop', ref: refHost()
+      });
+      fetch(WEB_APP_URL + '?' + q.toString(), { mode: 'no-cors', keepalive: true, cache: 'no-store' }).catch(function () { /* silent */ });
+    } catch (e) { /* silent */ }
   }
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -449,6 +502,7 @@
     $('firmName').textContent = firm();
     if (eventId) paint();
     // A slow answer must never look like a broken page: after a few seconds, say so quietly.
+    setTimeout(sendVisit, 7000);                                       // normally sent as soon as the webinar lookup has answered (below); this is the fallback
     setTimeout(function () { if (!confirmed && !ev.topic) note('Still loading the webinar details — you can register below in the meantime.'); }, 6000);
     loadEvent();
   });

@@ -260,6 +260,7 @@
     opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:30;
   }
   #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  body.notice-open #toast{ bottom:auto; top:calc(14px + env(safe-area-inset-top,0px)); z-index:60; max-width:92vw; text-align:center; }
 
   /* ── Loading, badges, search ─────────────────── */
   .skeleton{
@@ -286,6 +287,22 @@
   .notify-row label{ display:flex; gap:10px; align-items:flex-start; font-weight:600; cursor:pointer; }
   .notify-row input[type=checkbox]{ width:20px; height:20px; margin-top:1px; flex:none; accent-color:var(--btn-blue,#2557D6); }
   .notify-hint{ margin:6px 0 0 30px; font-size:.84rem; color:var(--ink-soft); line-height:1.45; }
+  .visit-card{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 16px; margin:0 0 12px; }
+  .visit-card h4{ margin:0 0 10px; font-size:.76rem; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-soft); font-weight:600; }
+  .visit-nums{ display:flex; gap:8px; }
+  .visit-nums > div{ flex:1; text-align:center; }
+  .visit-nums .v{ font-family:Georgia,'Times New Roman',serif; font-size:1.55rem; font-weight:600; line-height:1.15; }
+  .visit-nums .l{ font-size:.74rem; color:var(--ink-soft); }
+  .visit-sub{ font-size:.84rem; color:var(--ink-soft); margin:10px 0 0; text-align:center; }
+  .src-row{ display:flex; align-items:center; gap:10px; font-size:.84rem; margin:7px 0 0; }
+  .src-row .nm{ width:38%; }
+  .src-row .bar{ flex:1; height:8px; background:var(--line); border-radius:4px; overflow:hidden; }
+  .src-row .bar i{ display:block; height:100%; background:var(--wa); }
+  .src-row .n{ width:2.2em; text-align:right; font-weight:600; }
+  .visit-card .foot{ font-size:.76rem; color:var(--ink-soft); margin:12px 0 0; line-height:1.45; }
+  .link-btn{ background:none; border:0; color:var(--btn-blue,#2557D6); font:inherit; font-weight:600; padding:0; cursor:pointer; text-decoration:underline; }
+  .link-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .link-row .nm{ font-weight:600; }
   .show-more{ width:100%; justify-content:center; margin:12px 0 4px; padding:11px; }
   .version-note{ text-align:center; color:var(--ink-soft); font-size:.72rem; opacity:.7; padding:26px 0 90px; }
   .load-error{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px 20px; text-align:center; }
@@ -345,6 +362,7 @@
         </button>
       </div>
     </div>
+    <button id="noticeBanner" class="banner remind-banner hidden" type="button"></button>
     <button id="remindBanner" class="banner remind-banner hidden" type="button"></button>
     <div id="compatBanner" class="banner hidden" role="status">
       <strong>Your Apps Script is still an older version.</strong> The app is running in compatibility mode — it works, but slower and without some features. Paste the latest <code>Code.gs</code>, choose Deploy → Manage deployments → ✎ → <em>New version</em>, then reload this page.
@@ -401,6 +419,7 @@
       </div>
     </div>
 
+    <div id="visitCard" class="visit-card hidden"></div>
     <div id="remindStrip" class="banner remind-banner hidden" role="status" style="cursor:default;"></div>
     <div class="attendees-head">
       <div class="section-label" id="attendeesLabel">Registered</div>
@@ -427,6 +446,7 @@
       <div class="stat-card"><div class="value" id="statRegistrations">–</div><div class="label">Registrations</div></div>
       <div class="stat-card"><div class="value" id="statFeedback">–</div><div class="label">Feedback received</div></div>
     </div>
+    <p class="muted-note hidden" id="dashVisitors" style="margin:-4px 0 14px; text-align:center;"></p>
 
     <div class="panel">
       <h2>Registrations by webinar</h2>
@@ -441,6 +461,42 @@
     </div>
   </div>
 
+</div>
+
+<!-- Tracked links: one link per place you share it -->
+<div id="linksOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3>Tracked links</h3>
+      <button id="closeLinksBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted-note" id="linksIntro" style="margin-bottom:6px;"></p>
+    <div id="linksList"></div>
+    <div class="field" style="margin-top:14px;">
+      <label for="linksCustom">Another place (letters and numbers)</label>
+      <div style="display:flex; gap:10px;"><input id="linksCustom" maxlength="24" placeholder="e.g. newsletter" style="flex:1;"><button class="ghost-btn" id="linksCustomBtn">Copy link</button></div>
+    </div>
+    <button class="ghost-btn" id="linksDoneBtn" style="width:100%; justify-content:center; margin-top:14px;">Done</button>
+  </div>
+</div>
+
+<!-- WhatsApp notice sheet: shown after a webinar is rescheduled / updated / cancelled -->
+<div id="noticeOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3 id="noticeTitle">Tell participants on WhatsApp</h3>
+      <button id="closeNoticeBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted-note" id="noticeIntro" style="margin-bottom:6px;"></p>
+    <p class="muted-note" id="noticeCount" style="margin:0 0 10px; font-weight:600;"></p>
+    <div id="noticeList"></div>
+    <div style="display:flex; gap:10px; margin-top:10px;">
+      <button class="ghost-btn" id="noticeLaterBtn" style="flex:1; justify-content:center;">Later</button>
+      <button class="ghost-btn" id="noticeDoneBtn" style="flex:1; justify-content:center;">Mark all done</button>
+    </div>
+  </div>
 </div>
 
 <!-- Reminder pop-up -->
@@ -495,7 +551,7 @@
       </div>
       <p id="meetingLinkNote" style="font-size:.82rem; color:var(--ink-soft); margin:14px 0 0;">A Google Meet link and calendar event are created automatically when you schedule this.</p>
       <div id="notifyRow" class="notify-row hidden">
-        <label><input type="checkbox" id="notifyChk" checked><span id="notifyText">Email the registered participants about this change</span></label>
+        <label><input type="checkbox" id="notifyChk" checked><span id="notifyText">Tell the registered participants about this change (email + WhatsApp)</span></label>
         <p class="notify-hint" id="notifyHint"></p>
       </div>
       <button class="primary-btn" id="createEventBtn">Schedule webinar</button>
@@ -528,7 +584,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '3.7';
+  const APP_VERSION = '3.8';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -544,6 +600,9 @@
   //   downloaded again only for a webinar whose change-token (v) moved.
   // So syncing costs the same whether there are 300 registrations or 30,000.
   let summary = null;              // { events:[…], stats:{…}, version }
+  // How many people opened each registration link (counted by the registration page itself, anonymously). null = this server can't tell.
+  let visitStats = null, visitStatsAsked = false;
+  try { visitStats = JSON.parse(lsGet('wm_visits_v1') || 'null'); } catch (e) { visitStats = null; }
   let serverMode = 'v36';          // 'v36' one-call sync · 'v3' summary + batches (Code.gs 3.0–3.5) · 'compat' (a much older Code.gs)
   let lastSyncAt = 0;
   let syncInFlight = null;
@@ -618,18 +677,19 @@
   // the page can show them the instant it opens — it doesn't have to wait for the server. The server
   // still confirms everything in the background and its answer always wins.
   //   register.html?id=EVT…&t=Topic&d=202610171600&b=Speaker&m=60      (d = UTC yyyymmddhhmm)
-  function shareUrl(evOrId){
+  function shareUrl(evOrId, src){
     const base = location.origin + location.pathname.replace('admin.html', 'register.html');
     const ev = typeof evOrId === 'string' ? findEvent(evOrId) : evOrId;
     const id = typeof evOrId === 'string' ? evOrId : (ev && ev.id);
     let url = base + '?id=' + encodeURIComponent(id);
-    if (!ev || !ev.dateISO) return url;
+    const tag = src ? '&s=' + encodeURIComponent(src) : '';
+    if (!ev || !ev.dateISO) return url + tag;
     const p = new URLSearchParams();
     if (ev.topic && ev.topic.length <= 120) p.set('t', ev.topic);
     p.set('d', new Date(ev.dateISO).toISOString().slice(0, 16).replace(/[-T:]/g, ''));
     if (ev.conductedBy && ev.conductedBy.length <= 60) p.set('b', ev.conductedBy);
     if (Number(ev.durationMinutes)) p.set('m', String(Number(ev.durationMinutes)));
-    return url + '&' + p.toString();
+    return url + '&' + p.toString() + tag;
   }
 
   // ── Network ────────────────────────────────────
@@ -822,10 +882,13 @@
       try {
         const data = await fetchSummary(fresh);
         const lists = data.lists; delete data.lists; delete data.pending;
+        const visits = data.visits; delete data.visits;
         let changed = !summary || summary.version !== data.version ||
           JSON.stringify(summary.events) !== JSON.stringify(data.events) || JSON.stringify(summary.stats) !== JSON.stringify(data.stats);
         summary = data;
         if (applyLists(lists)) changed = true;               // the participant lists that came along with it
+        if (visits && JSON.stringify(visits.byEvent) !== JSON.stringify(visitStats && visitStats.byEvent)) { visitStats = visits; lsSet('wm_visits_v1', JSON.stringify(visits)); changed = true; }
+        else if (visits === null && !visitStatsAsked) { visitStatsAsked = true; refreshVisitStats(); }   // not computed yet on the server — ask separately, off the critical path
         lastSyncAt = Date.now();
         lastSyncError = null;
         lastSyncInfo = { total: Date.now() - started, server: typeof data.ms === 'number' ? data.ms : null };
@@ -972,6 +1035,10 @@
     if (v === 'detail') renderDetail();
     else if (v === 'dashboard') renderDashboard();
   }
+  // The page scrolls inside <body> (html and body both have overflow-x:hidden), so window.scrollY / window.scrollTo don't see it.
+  // Without these, going Back from a long list left the next screen scrolled and the header covering its top.
+  const pageScrollTop = () => Math.max(window.scrollY || 0, document.documentElement.scrollTop || 0, document.body.scrollTop || 0);
+  function scrollPageToTop(){ window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }
   function withViewTransition(fn){
     if (document.startViewTransition) document.startViewTransition(fn);
     else fn();
@@ -983,7 +1050,7 @@
       $('detailView').classList.toggle('hidden', name !== 'detail');
       $('dashboardView').classList.toggle('hidden', name !== 'dashboard');
       $('fabBtn').classList.toggle('hidden', name !== 'list');   // only where it's used — never covering a participant's buttons
-      window.scrollTo(0, 0);
+      scrollPageToTop();
     });
   }
 
@@ -1165,6 +1232,93 @@
       'Regards\n' + ORGANISER_NAME;
   }
 
+  // ── Link activity: how many people opened the registration link ────────────────────
+  async function refreshVisitStats(){
+    try {
+      const d = await apiGet({ action: 'visitStats' });
+      if (d && d.visits) {
+        visitStats = d.visits; lsSet('wm_visits_v1', JSON.stringify(visitStats));
+        if (activeView() === 'detail') renderVisitCard(findEvent(currentEventId)); else if (activeView() === 'dashboard') renderDashboardVisitors();
+      }
+    } catch (err) { /* an older server, or offline — the card simply stays hidden */ }
+  }
+  const SRC_NAMES = { whatsapp: 'WhatsApp', instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn', x: 'X (Twitter)', youtube: 'YouTube', google: 'Google', email: 'Email', sms: 'SMS', ads: 'Ads', direct: 'Direct / unknown', referral: 'Other websites' };
+  const srcName = (k) => SRC_NAMES[k] || (k.charAt(0).toUpperCase() + k.slice(1).replace(/[_-]+/g, ' '));
+  function renderVisitCard(ev){
+    const box = $('visitCard');
+    if (!ev || !visitStats || !visitStats.byEvent) { box.classList.add('hidden'); return; }
+    const st = visitStats.byEvent[ev.id] || { unique: 0, visits: 0, last24h: 0, sources: {} };
+    const reg = ev.registered || 0;
+    // Conversion only makes sense when counting covered everyone who registered (people who signed up before counting began, or were typed in by hand, would push it over 100%).
+    const rate = st.unique && st.unique >= reg ? Math.round(reg / st.unique * 100) + '%' : '\u2013';
+    box.innerHTML = '';
+    const h = document.createElement('h4'); h.textContent = 'Link activity'; box.appendChild(h);
+    const nums = document.createElement('div'); nums.className = 'visit-nums';
+    [[st.unique, 'people opened the link'], [reg, 'registered'], [rate, 'registered of those']].forEach(([v, l]) => {
+      const d = document.createElement('div'); const a = document.createElement('div'); a.className = 'v'; a.textContent = v;
+      const b = document.createElement('div'); b.className = 'l'; b.textContent = l; d.append(a, b); nums.appendChild(d);
+    });
+    box.appendChild(nums);
+    const sub = document.createElement('p'); sub.className = 'visit-sub';
+    sub.textContent = st.unique ? st.visits + (st.visits === 1 ? ' visit' : ' visits') + ' in all \u00b7 ' + st.last24h + (st.last24h === 1 ? ' person' : ' people') + ' in the last 24 hours' : 'No one has opened the link yet \u2014 or counting only started recently.';
+    box.appendChild(sub);
+    const srcs = Object.keys(st.sources || {}).sort((a, b) => st.sources[b] - st.sources[a]).slice(0, 6);
+    if (srcs.length) {
+      const hh = document.createElement('h4'); hh.style.margin = '14px 0 2px'; hh.textContent = 'Where they came from'; box.appendChild(hh);
+      srcs.forEach(k => {
+        const row = document.createElement('div'); row.className = 'src-row';
+        const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = srcName(k);
+        const bar = document.createElement('span'); bar.className = 'bar'; const i = document.createElement('i'); i.style.width = Math.max(4, Math.round(st.sources[k] / st.unique * 100)) + '%'; bar.appendChild(i);
+        const n = document.createElement('span'); n.className = 'n'; n.textContent = st.sources[k];
+        row.append(nm, bar, n); box.appendChild(row);
+      });
+    }
+    const foot = document.createElement('p'); foot.className = 'foot';
+    foot.append('Counted when the registration page opens, however the link was shared \u2014 a shortened link works too. One phone = one person. ');
+    const b = document.createElement('button'); b.className = 'link-btn'; b.type = 'button'; b.textContent = 'Get a tracked link for each place you share it';
+    b.addEventListener('click', () => openLinks(ev));
+    foot.appendChild(b); box.appendChild(foot);
+    box.classList.remove('hidden');
+  }
+  function renderDashboardVisitors(){
+    const el = $('dashVisitors');
+    if (!el) return;
+    if (!visitStats || !visitStats.byEvent || !summary) { el.classList.add('hidden'); return; }
+    let u = 0, v = 0;
+    summary.events.forEach(e => { const s = visitStats.byEvent[e.id]; if (s) { u += s.unique; v += s.visits; } });
+    el.textContent = u ? u + ' people opened a registration link (' + v + ' visits) \u00b7 ' + summary.stats.totalRegistrations + ' registered in all' : 'No registration-link visits counted yet.';
+    el.classList.remove('hidden');
+  }
+
+  // One link per place you share it (WhatsApp, Instagram, Facebook, …), each tagged so its visitors are counted separately.
+  // Paste it into a link shortener if you like — the tag travels with it.
+  const LINK_CHANNELS = [['whatsapp', 'WhatsApp'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['linkedin', 'LinkedIn'], ['x', 'X (Twitter)'], ['email', 'Email'], ['sms', 'SMS'], ['ads', 'Ads (Meta / Google)']];
+  let linksEvent = null;
+  function openLinks(ev){
+    linksEvent = ev;
+    $('linksIntro').textContent = '\u201c' + ev.topic + '\u201d. Copy a separate link for each place you share it; people who arrive through it are counted under that name. Each one still opens the same registration page.';
+    const box = $('linksList'); box.innerHTML = '';
+    LINK_CHANNELS.forEach(([tag, label]) => {
+      const row = document.createElement('div'); row.className = 'link-row';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = label;
+      const btn = document.createElement('button'); btn.className = 'ghost-btn'; btn.textContent = 'Copy link';
+      btn.addEventListener('click', () => copyText(shareUrl(ev, tag), label + ' link'));
+      row.append(nm, btn); box.appendChild(row);
+    });
+    $('linksCustom').value = '';
+    $('linksOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('linksOverlay').classList.add('open')));
+  }
+  function hideLinks(){ $('linksOverlay').classList.remove('open'); setTimeout(() => $('linksOverlay').classList.add('hidden'), 280); }
+  $('closeLinksBtn').addEventListener('click', hideLinks);
+  $('linksDoneBtn').addEventListener('click', hideLinks);
+  $('linksOverlay').addEventListener('click', (e) => { if (e.target === $('linksOverlay')) hideLinks(); });
+  $('linksCustomBtn').addEventListener('click', () => {
+    const tag = $('linksCustom').value.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24);
+    if (!tag) { toast('Type a short name first (letters and numbers)'); return; }
+    copyText(shareUrl(linksEvent, tag), tag + ' link');
+  });
+
   // ── Reminders to send: pop-up at 8 AM the day before and on the day ─────────────────
   // Times are this device's local time. A reminder is "due" from 8:00 AM the day before the
   // webinar until 8:00 AM on the day (stage "prev"), then from 8:00 AM on the day until the
@@ -1258,18 +1412,18 @@
     renderRemindStrip();
     refreshReminders();
   }
-  function setRowReminded(rowEl, on){
+  function setRowReminded(rowEl, on, label){
     rowEl.classList.toggle('reminded', on);
     const who = rowEl.querySelector('.who');
     let tag = who.querySelector('.tag-ok');
-    if (on && !tag) { tag = document.createElement('div'); tag.className = 'tag-ok'; tag.textContent = '\u2713 Reminded'; who.appendChild(tag); }
+    if (on && !tag) { tag = document.createElement('div'); tag.className = 'tag-ok'; tag.textContent = label || '\u2713 Reminded'; who.appendChild(tag); }
     if (!on && tag) tag.remove();
   }
 
   // The pop-up. It opens by itself when a reminder is newly due (at launch, after a sync, or when 8:00 arrives while
   // the app is open); "Later" closes it and the green banner stays on the list until everyone is reminded.
   const popupShown = new Set();
-  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden'); }
+  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden') || !$('noticeOverlay').classList.contains('hidden') || !$('linksOverlay').classList.contains('hidden'); }
   function renderRemindPopup(due){
     const box = $('remindList'); box.innerHTML = '';
     due.forEach(d => {
@@ -1298,6 +1452,7 @@
   function refreshReminders(popup){
     const due = dueReminders();
     renderRemindBanner(due);
+    renderNoticeBanner();
     if (!popup || !due.length || overlayOpen()) return;
     const fresh = due.filter(d => !popupShown.has(skipKey(d.ev, d.stage)));
     if (!fresh.length) return;
@@ -1305,6 +1460,137 @@
     showRemind(due);
   }
   $('remindBanner').addEventListener('click', () => { const due = dueReminders(); if (due.length) showRemind(due); });
+
+  // ── WhatsApp notices: "the webinar was rescheduled / updated / cancelled" ───────────
+  // Saving an edit (or cancelling) with the "tell the participants" option ticked sends the emails AND leaves you a ready-to-send
+  // WhatsApp message for each person: tap the green icon, press send, and they're ticked. It is kept on this phone until everyone
+  // is done (or you tap Mark all done), so closing the app doesn't lose it. The wording matches the email.
+  const LS_NOTICE = 'wm_notice_v1';
+  let notices = (() => { try { const a = JSON.parse(lsGet(LS_NOTICE) || '[]'); const cutoff = Date.now() - 14 * 86400000; return Array.isArray(a) ? a.filter(n => n && n.at > cutoff) : []; } catch (e) { return []; } })();
+  const saveNotices = () => lsSet(LS_NOTICE, JSON.stringify(notices));
+  const snapshotOf = (ev) => ({ dateISO: ev.dateISO, durationMinutes: Number(ev.durationMinutes) || 60, topic: ev.topic, conductedBy: ev.conductedBy, meetingLink: ev.meetingLink || '' });
+  function diffChanges(o, n){
+    const out = [];
+    if (new Date(o.dateISO).getTime() !== new Date(n.dateISO).getTime()) out.push('date');
+    if ((Number(o.durationMinutes) || 60) !== (Number(n.durationMinutes) || 60)) out.push('duration');
+    if (String(o.topic).trim() !== String(n.topic).trim()) out.push('topic');
+    if (String(o.conductedBy).trim() !== String(n.conductedBy).trim()) out.push('speaker');
+    if (String(o.meetingLink || '').trim() !== String(n.meetingLink || '').trim()) out.push('link');
+    return out;
+  }
+  function minutesText(m){
+    const h = Math.floor(m / 60), r = m % 60;
+    if (h === 0) return m + ' minutes';
+    if (r === 0) return h + (h === 1 ? ' hour' : ' hours');
+    return h + (h === 1 ? ' hour ' : ' hours ') + r + ' minutes';
+  }
+  const noticeEnd = (d) => new Date(d.dateISO).getTime() + (Number(d.durationMinutes) || 60) * 60000;
+  const noticeRelevant = (n) => Math.max(noticeEnd(n.old), n.nu ? noticeEnd(n.nu) : 0) > Date.now();   // nothing to tell people about a webinar that is already over
+
+  /** The WhatsApp message for one person — the same wording as the email (Code.gs sendChangeEmail_). */
+  function noticeDraft(a, n){
+    const nm = a.name || 'Participant';
+    const when = (iso) => participantTimeText({ dateISO: iso }, a.country);
+    if (n.kind === 'cancel') {
+      return 'Dear ' + nm + '\n\nWe regret to inform you that the webinar on ' + n.old.topic + ', which was scheduled for ' + when(n.old.dateISO) +
+        ', has been cancelled.\n\nWe are sorry for the inconvenience, and we will write to you when a new date is confirmed.\n\nRegards\n' + ORGANISER_NAME;
+    }
+    const ch = n.changes, nu = n.nu, resched = ch.indexOf('date') !== -1, lines = [];
+    if (resched) { lines.push('Earlier: ' + when(n.old.dateISO)); lines.push('New date and time: ' + when(nu.dateISO)); }
+    if (ch.indexOf('topic') !== -1) lines.push('Topic: ' + n.old.topic + ' \u2192 ' + nu.topic);
+    if (ch.indexOf('speaker') !== -1) lines.push('Conducted by: ' + n.old.conductedBy + ' \u2192 ' + nu.conductedBy);
+    if (ch.indexOf('duration') !== -1) lines.push('Duration: ' + minutesText(n.old.durationMinutes) + ' \u2192 ' + minutesText(nu.durationMinutes));
+    if (ch.indexOf('link') !== -1) lines.push('Meeting link: updated \u2014 please use the link below');
+    if (!resched) lines.push('Date and time: ' + when(nu.dateISO));
+    return 'Dear ' + nm + '\n\n' +
+      (resched ? 'We would like to let you know that the webinar on ' + nu.topic + ' has been rescheduled.' : 'Some details of the webinar on ' + nu.topic + ' have been updated.') + '\n\n' +
+      lines.join('\n') + '\n\n' +
+      (resched ? 'We are sorry for any inconvenience this may cause, and look forward to seeing you there.' : 'We look forward to seeing you there.') +
+      (nu.meetingLink ? '\n\nYou can click this link and join the webinar: ' + nu.meetingLink : '') +
+      '\n\nRegards\n' + ORGANISER_NAME;
+  }
+
+  const noticeCounts = (n) => ({ total: n.people.length, done: n.people.filter(p => n.sent[whoKey(p)]).length });
+  const openNotices = () => notices.filter(n => noticeRelevant(n) && noticeCounts(n).done < noticeCounts(n).total);
+  const noticeWord = (n) => n.kind === 'cancel' ? 'cancelled' : (n.changes.indexOf('date') !== -1 ? 'rescheduled' : 'updated');
+
+  function renderNoticeBanner(){
+    const b = $('noticeBanner'), open = openNotices();
+    if (!open.length) { b.classList.add('hidden'); return; }
+    b.innerHTML = '';
+    const strong = document.createElement('strong'); strong.textContent = '\ud83d\udce3 WhatsApp message to send ';
+    b.appendChild(strong);
+    const one = open.length === 1 ? open[0] : null;
+    b.appendChild(document.createTextNode(one
+      ? '\u2014 \u201c' + one.old.topic + '\u201d was ' + noticeWord(one) + ' \u00b7 ' + noticeCounts(one).done + ' of ' + noticeCounts(one).total + ' sent. Tap to open.'
+      : '\u2014 ' + open.length + ' webinar changes. Tap to open.'));
+    b.classList.remove('hidden');
+  }
+
+  let noticeShownId = null;
+  function renderNoticeSheet(){
+    const n = notices.find(x => x.id === noticeShownId);
+    if (!n) return;
+    const word = noticeWord(n), c = noticeCounts(n);
+    $('noticeTitle').textContent = n.kind === 'cancel' ? 'Webinar cancelled \u2014 tell them on WhatsApp' : 'Webinar ' + word + ' \u2014 tell them on WhatsApp';
+    $('noticeIntro').textContent = '\u201c' + n.old.topic + '\u201d. The emails are on their way. Tap the green WhatsApp icon next to each person and press send \u2014 the message is already written, with the time in their own country.';
+    $('noticeCount').textContent = c.done + ' of ' + c.total + ' sent' + (c.done >= c.total ? ' \u2014 all done, thank you!' : '');
+    const box = $('noticeList'); box.innerHTML = '';
+    n.people.forEach(p => {
+      const row = document.createElement('div'); row.className = 'attendee-row';
+      const who = document.createElement('div'); who.className = 'who';
+      const nm = document.createElement('div'); nm.className = 'name'; nm.textContent = p.name || '(no name)'; who.appendChild(nm);
+      const sub = [p.mobile, p.country && p.country !== 'Unknown' ? p.country : ''].filter(Boolean).join(' \u00b7 ');
+      if (sub) { const sd = document.createElement('div'); sd.className = 'sub'; sd.textContent = sub; who.appendChild(sd); }
+      const actions = document.createElement('div'); actions.className = 'actions';
+      const ph = phoneLinks(p.mobile, p.country);
+      if (ph) {
+        const wa = actionLink('wa', 'https://wa.me/' + ph.wa + '?text=' + encodeURIComponent(noticeDraft(p, n)), 'WhatsApp ' + (p.name || ''), true);
+        wa.addEventListener('click', () => { n.sent[whoKey(p)] = Date.now(); saveNotices(); setRowReminded(row, true, '\u2713 Sent'); const cc = noticeCounts(n); $('noticeCount').textContent = cc.done + ' of ' + cc.total + ' sent' + (cc.done >= cc.total ? ' \u2014 all done, thank you!' : ''); renderNoticeBanner(); });
+        actions.appendChild(wa);
+      } else {
+        const none = document.createElement('div'); none.className = 'sub'; none.textContent = 'No mobile number \u2014 they got the email'; who.appendChild(none);
+      }
+      row.append(who, actions);
+      if (n.sent[whoKey(p)]) setRowReminded(row, true, '\u2713 Sent');
+      box.appendChild(row);
+    });
+  }
+  function openNotice(id){
+    noticeShownId = id;
+    renderNoticeSheet();
+    $('noticeOverlay').classList.remove('hidden');
+    document.body.classList.add('notice-open');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('noticeOverlay').classList.add('open')));
+  }
+  function hideNotice(){
+    $('noticeOverlay').classList.remove('open');
+    document.body.classList.remove('notice-open');
+    setTimeout(() => $('noticeOverlay').classList.add('hidden'), 280);
+    renderNoticeBanner();
+  }
+  $('closeNoticeBtn').addEventListener('click', hideNotice);
+  $('noticeLaterBtn').addEventListener('click', hideNotice);
+  $('noticeDoneBtn').addEventListener('click', () => { notices = notices.filter(x => x.id !== noticeShownId); saveNotices(); hideNotice(); });
+  $('noticeOverlay').addEventListener('click', (e) => { if (e.target === $('noticeOverlay')) hideNotice(); });
+  $('noticeBanner').addEventListener('click', () => { const open = openNotices(); if (open.length) openNotice(open[0].id); });
+
+  /** Called when a webinar was edited or cancelled with "tell the participants" ticked: keeps a message ready for each registered person. */
+  async function startNotice(kind, evId, oldSnap, nuSnap){
+    let cached = loadAtt(evId);
+    if (!cached) { try { await ensureAttendees(evId); } catch (err) { /* no list → nobody to message */ } cached = loadAtt(evId); }
+    const people = cached ? cached.attendees.map(a => ({ name: a.name, email: a.email, mobile: a.mobile, country: a.country })) : [];
+    if (!people.length) return;
+    // Edited again before everyone was messaged? People know the ORIGINAL details, so tell them original → latest.
+    const prev = notices.find(x => x.evId === evId && noticeCounts(x).done < noticeCounts(x).total);   // only one still being worked through
+    const old = prev ? prev.old : oldSnap;
+    notices = notices.filter(x => x.evId !== evId);
+    const n = { id: 'n' + Date.now().toString(36), evId: evId, kind: kind, old: old, nu: kind === 'cancel' ? null : nuSnap, changes: [], people: people, sent: {}, at: Date.now() };
+    if (kind !== 'cancel') { n.changes = diffChanges(old, nuSnap); if (!n.changes.length) { saveNotices(); renderNoticeBanner(); return; } }
+    if (!noticeRelevant(n)) { saveNotices(); renderNoticeBanner(); return; }
+    notices.push(n); saveNotices(); renderNoticeBanner();
+    setTimeout(() => openNotice(n.id), 450);
+  }
   $('closeRemindBtn').addEventListener('click', hideRemind);
   $('remindLaterBtn').addEventListener('click', hideRemind);
   $('remindOverlay').addEventListener('click', (e) => { if (e.target === $('remindOverlay')) hideRemind(); });
@@ -1430,6 +1716,7 @@
       linkEl.textContent = 'No meeting link yet';
     }
     renderRemindStrip();
+    renderVisitCard(ev);
     $('dDescription').textContent = ev.description || '';
     $('dDescription').style.display = ev.description ? 'block' : 'none';
     renderAttendees();
@@ -1513,6 +1800,7 @@
     $('statWebinars').textContent = st.totalWebinars;
     $('statRegistrations').textContent = st.totalRegistrations;
     $('statFeedback').textContent = st.totalFeedback == null ? '–' : st.totalFeedback;
+    renderDashboardVisitors();
 
     // Latest 12 webinars, oldest → newest, so the bars read left to right in time.
     const perWebinar = summary.events.slice().sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO)).slice(0, 12).reverse();
@@ -1584,13 +1872,15 @@
     // If people are registered for a webinar that hasn't happened yet, offer to tell them it's cancelled.
     let notify = false;
     if (ev.registered > 0 && endTime(ev) > Date.now()) {
-      notify = confirm('Email the ' + ev.registered + ' registered ' + (ev.registered === 1 ? 'person' : 'people') + ' to tell them this webinar is cancelled?\n\nOK = send the cancellation email\nCancel = don\u2019t send anything');
+      notify = confirm('Email the ' + ev.registered + ' registered ' + (ev.registered === 1 ? 'person' : 'people') + ' to tell them this webinar is cancelled?\n\nOK = send the cancellation email (and get a WhatsApp message ready for each person)\nCancel = don\u2019t send anything');
     }
     const btn = $('deleteEventBtn');
     btn.disabled = true;
+    if (notify) { try { await ensureAttendees(ev.id); } catch (err) { /* the emails still go out; just no WhatsApp list */ } }
     try {
       const data = await apiPost({ action: 'deleteEvent', id: ev.id, notify: notify });
       if (data.error) throw new Error(data.error);
+      if (notify) startNotice('cancel', ev.id, snapshotOf(ev), null);       // takes its copy of the people now, before the list is dropped below
       summary.events = summary.events.filter(e => e.id !== ev.id);
       summary.stats.totalWebinars = summary.events.length;
       dropAtt(ev.id);
@@ -1649,8 +1939,8 @@
     if (!ch.length) { chk.disabled = true; $('notifyHint').textContent = 'Nothing the participants would notice has changed, so no email will be sent.'; return; }
     chk.disabled = false;
     $('notifyHint').textContent = chk.checked
-      ? who + ' will get an email saying the ' + (ch[0] === 'date and time' ? 'webinar has been rescheduled' : 'webinar details have been updated') + ' (' + ch.join(', ') + '), with the new time in their own country and the Meet link.'
-      : 'No email will be sent. The calendar, sheet and reminders are still updated.';
+      ? who + ' will get an email saying the ' + (ch[0] === 'date and time' ? 'webinar has been rescheduled' : 'webinar details have been updated') + ' (' + ch.join(', ') + '), with the new time in their own country and the Meet link. You\u2019ll also get a WhatsApp message ready to send to each person.'
+      : 'No email will be sent and no WhatsApp message prepared. The calendar, sheet and reminders are still updated.';
   }
   ['newTopic', 'newEventDate', 'newEventTime', 'newConductor', 'newMeetingLink'].forEach(id => $(id).addEventListener('input', updateNotifyHint));
   ['newDuration', 'newEventDate', 'newEventTime', 'notifyChk'].forEach(id => $(id).addEventListener('change', updateNotifyHint));
@@ -1756,11 +2046,13 @@
 
       if (isEdit) {
         // Show the change right away; the background sync confirms it.
+        const evId = editingEventId, oldSnap = editBase ? snapshotOf(editBase) : null;
         const ev = findEvent(editingEventId);
         if (ev) Object.assign(ev, { topic, conductedBy, dateISO: dateVal.toISOString(), durationMinutes, description, meetingLink });
         saveSummary();
         hideSheet();
         renderAll();
+        if (payload.notify !== false && oldSnap && ev && Array.isArray(data.changes) && data.changes.length) startNotice('update', evId, oldSnap, snapshotOf(ev));
         toast('Saved — calendar and sheet updated' + (data.notified ? ' · ' + data.notified + (data.notified === 1 ? ' participant is' : ' participants are') + ' being emailed' : ''));
       } else {
         $('addFormPanel').classList.add('hidden');
@@ -1790,7 +2082,7 @@
     const sheetOpen = () => !$('addOverlay').classList.contains('hidden');
 
     document.addEventListener('touchstart', (e) => {
-      if (refreshing || sheetOpen() || window.scrollY > 0 || !e.touches.length) { pulling = false; return; }
+      if (refreshing || sheetOpen() || pageScrollTop() > 0 || !e.touches.length) { pulling = false; return; }
       startY = e.touches[0].clientY;
       pulling = true;
     }, { passive: true });
@@ -1798,7 +2090,7 @@
     document.addEventListener('touchmove', (e) => {
       if (!pulling || refreshing || !e.touches.length) return;
       const dy = e.touches[0].clientY - startY;
-      if (window.scrollY > 0 || dy <= 0) { indicator.style.height = '0px'; indicator.classList.remove('ready'); if (window.scrollY > 0) pulling = false; return; }
+      if (pageScrollTop() > 0 || dy <= 0) { indicator.style.height = '0px'; indicator.classList.remove('ready'); if (pageScrollTop() > 0) pulling = false; return; }
       const h = Math.min(dy * 0.5, MAX_PULL);
       indicator.style.height = h + 'px';
       indicator.classList.toggle('ready', h >= PULL_THRESHOLD);
