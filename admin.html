@@ -282,6 +282,10 @@
   .remind-card .row .primary-btn{ flex:1; margin:0; }
   .attendee-row .tag-ok{ font-size:.78rem; color:var(--wa); margin-top:3px; font-weight:600; }
   .attendee-row.reminded .round-btn.wa{ opacity:.55; }
+  .notify-row{ margin:18px 0 0; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+  .notify-row label{ display:flex; gap:10px; align-items:flex-start; font-weight:600; cursor:pointer; }
+  .notify-row input[type=checkbox]{ width:20px; height:20px; margin-top:1px; flex:none; accent-color:var(--btn-blue,#2557D6); }
+  .notify-hint{ margin:6px 0 0 30px; font-size:.84rem; color:var(--ink-soft); line-height:1.45; }
   .show-more{ width:100%; justify-content:center; margin:12px 0 4px; padding:11px; }
   .version-note{ text-align:center; color:var(--ink-soft); font-size:.72rem; opacity:.7; padding:26px 0 90px; }
   .load-error{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px 20px; text-align:center; }
@@ -490,6 +494,10 @@
         <input class="field" id="newMeetingLink" type="url" placeholder="https://meet.google.com/...">
       </div>
       <p id="meetingLinkNote" style="font-size:.82rem; color:var(--ink-soft); margin:14px 0 0;">A Google Meet link and calendar event are created automatically when you schedule this.</p>
+      <div id="notifyRow" class="notify-row hidden">
+        <label><input type="checkbox" id="notifyChk" checked><span id="notifyText">Email the registered participants about this change</span></label>
+        <p class="notify-hint" id="notifyHint"></p>
+      </div>
       <button class="primary-btn" id="createEventBtn">Schedule webinar</button>
       <p class="sheet-error" id="createError"></p>
     </div>
@@ -520,7 +528,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '3.6';
+  const APP_VERSION = '3.7';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -1173,7 +1181,9 @@
     if (changed) { lsSet(LS_SENT, JSON.stringify(remSent)); lsSet(LS_SKIP, JSON.stringify(remSkip)); }
   })();
   const whoKey = (a) => String(a.email || a.mobile || a.name || '').trim().toLowerCase();
-  const sentKey = (evId, stage, a) => evId + '|' + stage + '|' + whoKey(a);
+  // Keyed by the webinar's date too: if a webinar is postponed, the new date is a fresh round of reminders — yesterday's ticks must not carry over.
+  const skipKey = (ev, stage) => ev.id + '@' + ev.dateISO + '|' + stage;
+  const sentKey = (evId, stage, a, ev) => (ev ? ev.id + '@' + ev.dateISO : evId) + '|' + stage + '|' + whoKey(a);
   const STAGE_WORD = { prev: 'tomorrow', day: 'today' };
 
   /** Which reminder stage is open for this webinar right now: 'prev', 'day', or null. */
@@ -1186,7 +1196,7 @@
     if (now >= new Date(y, m, d - 1, REMIND_HOUR)) return 'prev';
     return null;
   }
-  function remindedCount(ev, stage, list){ return list.filter(a => remSent[sentKey(ev.id, stage, a)]).length; }
+  function remindedCount(ev, stage, list){ return list.filter(a => remSent[sentKey(ev.id, stage, a, ev)]).length; }
 
   /** Webinars whose reminders are open right now and not yet finished. */
   function dueReminders(){
@@ -1195,7 +1205,7 @@
     const now = new Date();
     summary.events.forEach(ev => {
       const stage = activeStage(ev, now);
-      if (!stage || remSkip[ev.id + '|' + stage]) return;
+      if (!stage || remSkip[skipKey(ev, stage)]) return;
       const cached = loadAtt(ev.id);
       const list = cached ? cached.attendees : [];
       if (!list.length) return;                                      // nobody to remind (or list not downloaded yet)
@@ -1224,7 +1234,7 @@
     const ev = findEvent(currentEventId);
     const stage = ev && activeStage(ev);
     const cached = ev && loadAtt(ev.id);
-    if (!ev || !stage || remSkip[ev.id + '|' + stage] || !cached || !cached.attendees.length) { strip.classList.add('hidden'); return; }
+    if (!ev || !stage || remSkip[skipKey(ev, stage)] || !cached || !cached.attendees.length) { strip.classList.add('hidden'); return; }
     const done = remindedCount(ev, stage, cached.attendees), total = cached.attendees.length;
     strip.innerHTML = '';
     const strong = document.createElement('strong'); strong.textContent = '\ud83d\udd14 Reminder due (' + STAGE_WORD[stage] + '): ' + done + ' of ' + total + ' sent. ';
@@ -1234,7 +1244,7 @@
       : 'Tap the green WhatsApp icon next to each person and press send.'));
     if (done < total) {
       const skip = document.createElement('button'); skip.className = 'ghost-btn small'; skip.style.display = 'inline-flex'; skip.style.marginLeft = '8px'; skip.textContent = 'Mark all done';
-      skip.addEventListener('click', () => { remSkip[ev.id + '|' + stage] = Date.now(); lsSet(LS_SKIP, JSON.stringify(remSkip)); renderRemindStrip(); refreshReminders(); });
+      skip.addEventListener('click', () => { remSkip[skipKey(ev, stage)] = Date.now(); lsSet(LS_SKIP, JSON.stringify(remSkip)); renderRemindStrip(); refreshReminders(); });
       strip.appendChild(skip);
     }
     strip.classList.remove('hidden');
@@ -1242,7 +1252,7 @@
 
   function markReminded(ev, stage, a, rowEl){
     if (!stage) return;
-    remSent[sentKey(ev.id, stage, a)] = Date.now();
+    remSent[sentKey(ev.id, stage, a, ev)] = Date.now();
     lsSet(LS_SENT, JSON.stringify(remSent));
     if (rowEl) setRowReminded(rowEl, true);
     renderRemindStrip();
@@ -1271,7 +1281,7 @@
       const go = document.createElement('button'); go.className = 'primary-btn'; go.textContent = 'Send reminders';
       go.addEventListener('click', () => { hideRemind(); openDetail(d.ev.id); });
       const skip = document.createElement('button'); skip.className = 'ghost-btn'; skip.textContent = 'Skip';
-      skip.addEventListener('click', () => { remSkip[d.ev.id + '|' + d.stage] = Date.now(); lsSet(LS_SKIP, JSON.stringify(remSkip)); refreshReminders(); if (!dueReminders().length) hideRemind(); else renderRemindPopup(dueReminders()); });
+      skip.addEventListener('click', () => { remSkip[skipKey(d.ev, d.stage)] = Date.now(); lsSet(LS_SKIP, JSON.stringify(remSkip)); refreshReminders(); if (!dueReminders().length) hideRemind(); else renderRemindPopup(dueReminders()); });
       row.append(go, skip); card.append(w, t, m, row); box.appendChild(card);
     });
   }
@@ -1289,9 +1299,9 @@
     const due = dueReminders();
     renderRemindBanner(due);
     if (!popup || !due.length || overlayOpen()) return;
-    const fresh = due.filter(d => !popupShown.has(d.ev.id + '|' + d.stage));
+    const fresh = due.filter(d => !popupShown.has(skipKey(d.ev, d.stage)));
     if (!fresh.length) return;
-    fresh.forEach(d => popupShown.add(d.ev.id + '|' + d.stage));
+    fresh.forEach(d => popupShown.add(skipKey(d.ev, d.stage)));
     showRemind(due);
   }
   $('remindBanner').addEventListener('click', () => { const due = dueReminders(); if (due.length) showRemind(due); });
@@ -1325,7 +1335,7 @@
       actions.appendChild(mailBtn);
     }
     row.append(who, actions);
-    if (stage && remSent[sentKey(ev.id, stage, a)]) setRowReminded(row, true);
+    if (stage && remSent[sentKey(ev.id, stage, a, ev)]) setRowReminded(row, true);
     return row;
   }
 
@@ -1571,16 +1581,21 @@
     const ev = findEvent(currentEventId);
     if (!ev) return;
     if (!confirm('Delete "' + ev.topic + '"?\n\nThis also removes it from your Google Calendar. People who registered stay in your sheet.')) return;
+    // If people are registered for a webinar that hasn't happened yet, offer to tell them it's cancelled.
+    let notify = false;
+    if (ev.registered > 0 && endTime(ev) > Date.now()) {
+      notify = confirm('Email the ' + ev.registered + ' registered ' + (ev.registered === 1 ? 'person' : 'people') + ' to tell them this webinar is cancelled?\n\nOK = send the cancellation email\nCancel = don\u2019t send anything');
+    }
     const btn = $('deleteEventBtn');
     btn.disabled = true;
     try {
-      const data = await apiPost({ action: 'deleteEvent', id: ev.id });
+      const data = await apiPost({ action: 'deleteEvent', id: ev.id, notify: notify });
       if (data.error) throw new Error(data.error);
       summary.events = summary.events.filter(e => e.id !== ev.id);
       summary.stats.totalWebinars = summary.events.length;
       dropAtt(ev.id);
       saveSummary();
-      toast('Webinar deleted');
+      toast('Webinar deleted' + (data.notified ? ' · ' + data.notified + (data.notified === 1 ? ' cancellation email' : ' cancellation emails') + ' being sent' : ''));
       history.back();                       // returns to the list (updates via popstate)
       syncSummary().then(changed => { if (changed) afterSync(); });
     } catch (err) {
@@ -1608,10 +1623,41 @@
     $('createError').style.display = 'none';
     $('createEventBtn').disabled = false;
     $('createEventBtn').textContent = 'Schedule webinar';
+    $('notifyRow').classList.add('hidden');
+    editBase = null;
   }
+
+  // ── Telling participants when you change a webinar ──
+  let editBase = null;
+  const istValue = () => { const d = $('newEventDate').value, t = $('newEventTime').value; const x = d && t ? new Date(d + 'T' + t + ':00+05:30') : null; return x && !isNaN(x) ? x.getTime() : NaN; };
+  /** Which things a participant would notice, comparing the form with the webinar as it was. (The description is deliberately not one.) */
+  function editChanges(){
+    if (!editBase) return [];
+    const out = [];
+    if (istValue() !== new Date(editBase.dateISO).getTime()) out.push('date and time');
+    if ((parseInt($('newDuration').value, 10) || 60) !== (Number(editBase.durationMinutes) || 60)) out.push('length');
+    if ($('newTopic').value.trim() !== String(editBase.topic).trim()) out.push('topic');
+    if ($('newConductor').value.trim() !== String(editBase.conductedBy).trim()) out.push('speaker');
+    if ($('newMeetingLink').value.trim() !== String(editBase.meetingLink || '').trim()) out.push('meeting link');
+    return out;
+  }
+  function updateNotifyHint(){
+    if (!editBase || editBase.registered < 1) { $('notifyRow').classList.add('hidden'); return; }
+    $('notifyRow').classList.remove('hidden');
+    const n = editBase.registered, who = n + (n === 1 ? ' registered person' : ' registered people');
+    const ch = editChanges(), chk = $('notifyChk');
+    if (!ch.length) { chk.disabled = true; $('notifyHint').textContent = 'Nothing the participants would notice has changed, so no email will be sent.'; return; }
+    chk.disabled = false;
+    $('notifyHint').textContent = chk.checked
+      ? who + ' will get an email saying the ' + (ch[0] === 'date and time' ? 'webinar has been rescheduled' : 'webinar details have been updated') + ' (' + ch.join(', ') + '), with the new time in their own country and the Meet link.'
+      : 'No email will be sent. The calendar, sheet and reminders are still updated.';
+  }
+  ['newTopic', 'newEventDate', 'newEventTime', 'newConductor', 'newMeetingLink'].forEach(id => $(id).addEventListener('input', updateNotifyHint));
+  ['newDuration', 'newEventDate', 'newEventTime', 'notifyChk'].forEach(id => $(id).addEventListener('change', updateNotifyHint));
 
   function openEditSheet(event){
     editingEventId = event.id;
+    editBase = Object.assign({}, event);
     $('sheetTitle').textContent = 'Edit webinar';
     $('addFormPanel').classList.remove('hidden');
     $('sharePanel').classList.add('hidden');
@@ -1632,6 +1678,8 @@
     $('createError').style.display = 'none';
     $('createEventBtn').disabled = false;
     $('createEventBtn').textContent = 'Save changes';
+    $('notifyChk').checked = true;
+    updateNotifyHint();
     showSheet();
   }
 
@@ -1699,7 +1747,7 @@
     $('createEventBtn').textContent = isEdit ? 'Saving…' : 'Scheduling…';
 
     const payload = isEdit
-      ? { action: 'updateEvent', id: editingEventId, topic, conductedBy, dateISO: dateVal.toISOString(), durationMinutes, description, meetingLink }
+      ? { action: 'updateEvent', id: editingEventId, topic, conductedBy, dateISO: dateVal.toISOString(), durationMinutes, description, meetingLink, notify: $('notifyChk').checked }
       : { action: 'createEvent', topic, conductedBy, dateISO: dateVal.toISOString(), durationMinutes, description };
 
     try {
@@ -1713,7 +1761,7 @@
         saveSummary();
         hideSheet();
         renderAll();
-        toast('Saved — calendar event updated');
+        toast('Saved — calendar and sheet updated' + (data.notified ? ' · ' + data.notified + (data.notified === 1 ? ' participant is' : ' participants are') + ' being emailed' : ''));
       } else {
         $('addFormPanel').classList.add('hidden');
         $('sharePanel').classList.remove('hidden');

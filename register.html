@@ -303,7 +303,6 @@
   var $ = function (id) { return document.getElementById(id); };
   var params = new URLSearchParams(location.search);
   var eventId = (params.get('id') || '').trim();
-  var TZ = 'Asia/Kolkata';
 
   // ── SHOW FIRST ──────────────────────────────────────────────────
   // Everything below runs synchronously while the page is being parsed, before
@@ -317,8 +316,9 @@
   // The backend then confirms in the background and only then is anything
   // marked closed/invalid.
   var SEED = {
-    // 8:00 PM UAE = 9:30 PM IST. Add  topic: '…', conductedBy: '…'  here to make this existing link show everything instantly.
-    'EVTMUMWP0I3': { dateISO: '2026-10-17T16:00:00Z' }
+    // 8:00 PM UAE = 9:30 PM IST. With topic and speaker here, this existing link shows everything the instant it opens.
+    // (Change conductedBy if the speaker isn't Arjun K T M — the server's answer replaces it a moment later anyway.)
+    'EVTMUMWP0I3': { topic: 'GCC NRIs Retirement Planning', conductedBy: 'Arjun K T M', dateISO: '2026-10-17T16:00:00Z' }
   };
 
   function clean(v, max) { return String(v == null ? '' : v).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max); }
@@ -349,14 +349,16 @@
   var ev = Object.assign({}, SEED[eventId] || {}, fromUrl(), fromCache());
 
   // Same wording the server uses: "Saturday, 17 October 2026 at 9:30 PM IST" — always IST, whatever the phone's time zone.
+  // IST is UTC+5:30 all year (no daylight saving), so this is plain arithmetic. (Asking the browser's Intl time-zone
+  // engine instead cost ~60 ms on a mid-range phone the first time it is used — the single slowest step on the page.)
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   function fmtDate(iso) {
-    try {
-      var d = new Date(iso); if (isNaN(d.getTime())) return '';
-      var p = {};
-      new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
-        .formatToParts(d).forEach(function (x) { p[x.type] = x.value; });
-      return p.weekday + ', ' + p.day + ' ' + p.month + ' ' + p.year + ' at ' + p.hour + ':' + p.minute + ' ' + p.dayPeriod + ' IST';
-    } catch (e) { return ''; }
+    var t = new Date(iso).getTime();
+    if (isNaN(t)) return '';
+    var d = new Date(t + 19800000), h = d.getUTCHours(), m = d.getUTCMinutes();
+    return DAYS[d.getUTCDay()] + ', ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear() + ' at ' +
+      (h % 12 || 12) + ':' + (m < 10 ? '0' : '') + m + ' ' + (h < 12 ? 'AM' : 'PM') + ' IST';
   }
   function firm() { return (typeof FIRM_NAME === 'string' && FIRM_NAME) ? FIRM_NAME : 'Wealth Matrix'; }
 
@@ -397,10 +399,13 @@
   }
   function onConfirmed(data) {
     confirmed = true;
+    // If the date we showed first (from the link / this phone's memory) turns out to be out of date — the webinar was
+    // postponed — say so, rather than silently swapping the date under the visitor.
+    var moved = ev.dateISO && data.dateISO && new Date(ev.dateISO).getTime() !== new Date(data.dateISO).getTime();
     ev = Object.assign({}, ev, data);
     paint();
     saveCache(data);
-    note('');
+    note(moved ? 'Please note: this webinar\u2019s date has been updated \u2014 the new date is shown above.' : '');
     var endsAt = new Date(data.dateISO).getTime() + (Number(data.durationMinutes) || 60) * 60000;
     if (Date.now() > endsAt) showClosed(data);       // only the backend can say a webinar is over
   }
