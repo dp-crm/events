@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Webinars — Wealth Matrix</title>
+<!-- Open the connections to Apps Script while the page loads, so the first sync doesn't pay for them. -->
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#10213A" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B1420" media="(prefers-color-scheme: dark)">
@@ -584,7 +587,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '3.8';
+  const APP_VERSION = '3.9';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -698,9 +701,10 @@
   class AppError extends Error { constructor(kind, msg){ super(msg); this.kind = kind; } }
   const GET_TIMEOUT_MS = 20000;   // a request that hasn't fully arrived by then is abandoned — nothing can hang forever
 
-  async function fetchJSON(url, options, timeoutMs){
+  async function fetchJSON(url, options, timeoutMs, outside){
     const ms = timeoutMs || GET_TIMEOUT_MS;
     const ctrl = new AbortController();
+    if (outside) { if (outside.aborted) ctrl.abort(); else outside.addEventListener('abort', () => ctrl.abort()); }
     const timer = setTimeout(() => ctrl.abort(), ms);      // stays armed until the reply has been read completely
     const tooSlow = () => new AppError('timeout', 'The server took longer than ' + Math.round(ms / 1000) + ' seconds to answer.');
     try {
@@ -733,6 +737,34 @@
       return await fetchJSON(url);
     }
   }
+  /**
+   * For the sync: if no answer has arrived after `hedgeMs` (a stalled first request is common as a phone app wakes up, and the
+   * first request after a quiet spell can be slow on Google's side), ask again in parallel and use whichever answers first.
+   * A dropped connection starts the second attempt straight away. The whole thing still gives up at GET_TIMEOUT_MS.
+   */
+  function apiGetHedged(params, hedgeMs){
+    const url = WEB_APP_URL + '?' + new URLSearchParams(params).toString();
+    const t0 = Date.now(), ctrls = [];
+    return new Promise((resolve, reject) => {
+      let settled = false, running = 0, started = 0, timer = null, lastErr = null;
+      const end = (fn, v) => { if (settled) return; settled = true; clearTimeout(timer); ctrls.forEach(c => c.abort()); fn(v); };
+      function launch(){
+        const left = GET_TIMEOUT_MS - (Date.now() - t0);
+        if (settled || started >= 2 || left < 1500) return false;
+        started++; running++;
+        const c = new AbortController(); ctrls.push(c);
+        fetchJSON(url, {}, left, c.signal).then(v => end(resolve, v), err => {
+          running--; lastErr = err;
+          if (settled) return;
+          if ((err.kind === 'network' || err.kind === 'http') && launch()) return;
+          if (running === 0) end(reject, lastErr);
+        });
+        return true;
+      }
+      launch();
+      timer = setTimeout(() => { timer = null; launch(); }, hedgeMs || 7000);
+    });
+  }
   async function apiPost(body){
     return fetchJSON(WEB_APP_URL, {
       method: 'POST',
@@ -752,11 +784,11 @@
   function lsDel(k){ try { localStorage.removeItem(k); } catch (e) { /* ignore */ } }
   function attIndex(){ try { return JSON.parse(lsGet(LS_ATT_IDX) || '{}'); } catch (e) { return {}; } }
 
-  function saveSummary(){ lsSet(LS_SUM, JSON.stringify({ summary: summary, at: lastSyncAt })); }
+  function saveSummary(){ lsSet(LS_SUM, JSON.stringify({ summary: summary, at: lastSyncAt, info: lastSyncInfo })); }
   function loadSummary(){
     try {
       const o = JSON.parse(lsGet(LS_SUM) || 'null');
-      if (o && o.summary && Array.isArray(o.summary.events) && o.summary.stats) { summary = o.summary; lastSyncAt = o.at || 0; return true; }
+      if (o && o.summary && Array.isArray(o.summary.events) && o.summary.stats) { summary = o.summary; lastSyncAt = o.at || 0; if (o.info) lastSyncInfo = Object.assign({ prev: true }, o.info); return true; }
     } catch (e) { /* corrupt — ignore */ }
     return false;
   }
@@ -809,8 +841,10 @@
   let slowStage = 0;          // 0 normal · 1 "still working" · 2 "taking long"
   let slowTimers = [];
 
+  let syncTicker = null;
   function setSyncing(on){
     document.body.classList.toggle('syncing', !!on);
+    clearInterval(syncTicker); syncTicker = on ? setInterval(updateListSub, 1000) : null;
     slowTimers.forEach(clearTimeout); slowTimers = [];
     slowStage = 0;
     if (on) {
@@ -829,7 +863,7 @@
   async function fetchSummary(fresh){
     const q = (action, extra) => Object.assign({ action: action }, extra || {}, fresh ? { fresh: '1' } : {});
     if (serverMode === 'v36') {
-      const d = await apiGet(q('sync', { have: buildHave() }));
+      const d = await apiGetHedged(q('sync', { have: buildHave() }));
       if (isUnknownAction(d)) serverMode = 'v3';           // Code.gs 3.0–3.5: no combined call — use summary + batches
       else {
         if (d.error) throw new AppError('server', String(d.error));
@@ -838,7 +872,7 @@
       }
     }
     if (serverMode === 'v3') {
-      const d = await apiGet(q('getSummary'));
+      const d = await apiGetHedged(q('getSummary'));
       if (isUnknownAction(d)) serverMode = 'compat';
       else {
         if (d.error) throw new AppError('server', String(d.error));
@@ -847,7 +881,7 @@
       }
     }
     // An older Code.gs is still deployed: run in compatibility mode with the endpoints it does have.
-    const d = await apiGet(q('getEvents'));
+    const d = await apiGetHedged(q('getEvents'));
     if (d.error) throw new AppError('server', String(d.error));
     if (!Array.isArray(d.events)) throw new AppError('server', 'The server\u2019s answer wasn\u2019t in the expected format.');
     d.events.forEach(e => { e.v = String(e.registered || 0); });
@@ -1066,7 +1100,8 @@
     }
     const n = summary.events.length;
     const base = n + (n === 1 ? ' webinar' : ' webinars');
-    if (syncing) el.textContent = slowStage >= 1 ? base + ' · syncing… slow connection — your saved data is shown' : base + ' · syncing…';
+    const secs = Math.round((Date.now() - syncStartedAt) / 1000);
+    if (syncing) el.textContent = slowStage >= 1 ? base + ' · syncing… ' + secs + ' s — slow connection, your saved data is shown' : base + ' · syncing…' + (secs >= 3 ? ' ' + secs + ' s' : '');
     else if (lastSyncError) el.textContent = base + ' · last sync failed — tap ↻ to retry';
     else el.textContent = base + ' · synced ' + relTime(lastSyncAt);
   }
@@ -1075,7 +1110,7 @@
     $('compatBanner').classList.toggle('hidden', !compat);
     const vs = summary ? (summary.version === 'old' ? 'old version' : 'v' + summary.version) : '…';
     const t = lastSyncInfo
-      ? ' · last sync ' + (lastSyncInfo.total / 1000).toFixed(1) + ' s' + (lastSyncInfo.server != null ? ' (server ' + (lastSyncInfo.server / 1000).toFixed(1) + ' s)' : '')
+      ? (lastSyncInfo.prev ? ' · last launch: sync ' : ' · last sync ') + (lastSyncInfo.total / 1000).toFixed(1) + ' s' + (lastSyncInfo.server != null ? ' (server ' + (lastSyncInfo.server / 1000).toFixed(1) + ' s)' : '')
       : '';
     $('versionNote').textContent = 'App v' + APP_VERSION + ' · Server ' + vs + t;
   }
