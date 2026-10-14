@@ -306,6 +306,20 @@
   .link-btn{ background:none; border:0; color:var(--btn-blue,#2557D6); font:inherit; font-weight:600; padding:0; cursor:pointer; text-decoration:underline; }
   .link-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); }
   .link-row .nm{ font-weight:600; }
+  .lead-actions{ display:flex; gap:10px; margin:0 0 12px; }
+  .lead-actions .ghost-btn{ flex:1; justify-content:center; }
+  .tag-lead{ font-size:.74rem; color:var(--ink-soft); border:1px solid var(--line); border-radius:999px; padding:1px 8px; display:inline-block; margin-top:3px; }
+  .form-error{ color:#C0392B; font-size:.86rem; margin:10px 0 0; }
+  .up-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; }
+  .up-grid label{ font-size:.78rem; color:var(--ink-soft); display:block; margin-bottom:3px; }
+  .up-grid select{ width:100%; }
+  .up-sum{ display:flex; gap:8px; margin:12px 0 8px; }
+  .up-sum > div{ flex:1; text-align:center; border:1px solid var(--line); border-radius:12px; padding:8px 4px; }
+  .up-sum .v{ font-family:Georgia,'Times New Roman',serif; font-size:1.4rem; font-weight:600; }
+  .up-sum .l{ font-size:.72rem; color:var(--ink-soft); }
+  .up-tbl{ width:100%; border-collapse:collapse; font-size:.78rem; margin:6px 0; }
+  .up-tbl td, .up-tbl th{ text-align:left; padding:5px 6px; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:110px; }
+  .up-issues{ font-size:.8rem; color:var(--ink-soft); margin:6px 0; line-height:1.5; }
   .show-more{ width:100%; justify-content:center; margin:12px 0 4px; padding:11px; }
   .version-note{ text-align:center; color:var(--ink-soft); font-size:.72rem; opacity:.7; padding:26px 0 90px; }
   .load-error{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px 20px; text-align:center; }
@@ -359,6 +373,9 @@
       <div style="display:flex; gap:8px;">
         <button class="icon-btn" id="refreshBtn" title="Refresh" aria-label="Refresh webinar list">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v6h-6"/></svg>
+        </button>
+        <button class="icon-btn" id="uploadTopBtn" title="Upload leads" aria-label="Upload leads from an Excel or CSV file">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
         </button>
         <button class="icon-btn" id="dashboardBtn" title="Dashboard" aria-label="Open dashboard">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>
@@ -422,10 +439,15 @@
       </div>
     </div>
 
+    <div class="lead-actions">
+      <button class="ghost-btn" id="addLeadBtn" type="button">+ Add lead</button>
+      <button class="ghost-btn" id="uploadLeadsBtn" type="button">Upload leads</button>
+    </div>
     <div id="visitCard" class="visit-card hidden"></div>
     <div id="remindStrip" class="banner remind-banner hidden" role="status" style="cursor:default;"></div>
     <div class="attendees-head">
       <div class="section-label" id="attendeesLabel">Registered</div>
+      <button class="ghost-btn small hidden" id="exportXlsxBtn" aria-label="Download the participant list as an Excel file" style="margin-right:6px;">Excel</button>
       <button class="ghost-btn small hidden" id="exportBtn" aria-label="Download the participant list as a spreadsheet file">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
         Export
@@ -464,6 +486,74 @@
     </div>
   </div>
 
+</div>
+
+<!-- Add one lead by hand -->
+<div id="leadOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3 id="leadTitle">Add a lead</h3>
+      <button id="closeLeadBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted-note" id="leadIntro" style="margin-bottom:6px;"></p>
+    <label class="form-label" for="leadName">Full name</label>
+    <input class="field" id="leadName" autocomplete="off">
+    <label class="form-label" for="leadCountry">Country</label>
+    <select class="field" id="leadCountry"></select>
+    <label class="form-label" for="leadMobile">Mobile number</label>
+    <input class="field" id="leadMobile" type="tel" inputmode="tel" autocomplete="off">
+    <label class="form-label" for="leadEmail">Email <span class="muted">(optional)</span></label>
+    <input class="field" id="leadEmail" type="email" inputmode="email" autocomplete="off">
+    <label class="form-label" for="leadSource">Where did you meet them? <span class="muted">(optional)</span></label>
+    <input class="field" id="leadSource" list="leadSources" placeholder="e.g. Seminar, Referral" autocomplete="off">
+    <datalist id="leadSources"><option value="Offline event"><option value="Referral"><option value="Phone call"><option value="WhatsApp"><option value="Walk-in"></datalist>
+    <label class="form-label" for="leadNotes">Notes <span class="muted">(optional)</span></label>
+    <textarea class="field" id="leadNotes" rows="2"></textarea>
+    <div class="notify-row">
+      <label><input type="checkbox" id="leadEmails"><span>Send them emails (confirmation, reminders, follow-up)</span></label>
+      <p class="notify-hint">Off by default — they haven’t registered themselves. Tick only if they agreed to receive emails.</p>
+    </div>
+    <p class="form-error" id="leadError" style="display:none;"></p>
+    <button class="primary-btn" id="leadSaveBtn" style="margin-top:14px;">Add lead</button>
+    <p class="muted-note" id="leadDone" style="display:none; margin-top:10px; text-align:center;"></p>
+  </div>
+</div>
+
+<!-- Upload leads from Excel / CSV -->
+<div id="uploadOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3>Upload leads</h3>
+      <button id="closeUploadBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted-note" style="margin-bottom:6px;">Add people from an Excel (.xlsx, .xls) or CSV file to a webinar’s list. You’ll see a preview before anything is saved.</p>
+    <label class="form-label" for="upEvent">Add them to</label>
+    <select class="field" id="upEvent"></select>
+    <label class="form-label" for="upFile">File</label>
+    <input class="field" id="upFile" type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+    <p style="margin:8px 0 0;"><button class="link-btn" id="upSample" type="button">Download a sample CSV</button></p>
+    <div id="upMap" class="hidden" style="margin-top:12px;">
+      <div class="section-label" style="margin:0 0 6px;">Which column is which?</div>
+      <div class="up-grid">
+        <div><label for="upMapName">Name *</label><select class="field" id="upMapName"></select></div>
+        <div><label for="upMapMobile">Mobile</label><select class="field" id="upMapMobile"></select></div>
+        <div><label for="upMapEmail">Email</label><select class="field" id="upMapEmail"></select></div>
+        <div><label for="upMapCountry">Country</label><select class="field" id="upMapCountry"></select></div>
+        <div><label for="upMapNotes">Notes</label><select class="field" id="upMapNotes"></select></div>
+        <div><label for="upMapSource">Source</label><select class="field" id="upMapSource"></select></div>
+      </div>
+    </div>
+    <div id="upPreview" class="hidden"></div>
+    <div id="upOpts" class="notify-row hidden">
+      <label><input type="checkbox" id="upEmails"><span>Send them emails (confirmation, reminders, follow-up)</span></label>
+      <p class="notify-hint">Off by default — they haven’t registered themselves. Tick only if they agreed to receive emails.</p>
+    </div>
+    <p class="form-error" id="upError" style="display:none;"></p>
+    <button class="primary-btn hidden" id="upGo" style="margin-top:14px;">Add leads</button>
+    <p class="muted-note" id="upProgress" style="display:none; margin-top:10px; text-align:center;"></p>
+  </div>
 </div>
 
 <!-- Tracked links: one link per place you share it -->
@@ -587,7 +677,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '3.9';
+  const APP_VERSION = '4.0';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -831,7 +921,8 @@
   function cleanAttendees(list){
     return (list || []).map(a => ({
       name: String(a.name == null ? '' : a.name), email: String(a.email == null ? '' : a.email),
-      country: String(a.country == null ? '' : a.country), mobile: String(a.mobile == null ? '' : a.mobile)
+      country: String(a.country == null ? '' : a.country), mobile: String(a.mobile == null ? '' : a.mobile),
+      ...(a.src ? { src: String(a.src) } : {})
     }));
   }
   const findEvent = (id) => summary ? summary.events.find(e => e.id === id) : null;
@@ -1267,6 +1358,263 @@
       'Regards\n' + ORGANISER_NAME;
   }
 
+  // ── Offline leads: add one by hand, or upload an Excel / CSV file ───────────────────
+  // They are saved on the Registrations tab against a webinar, so they appear in its participant list (tagged "Offline lead").
+  // By default they get NO automatic emails — they didn't register themselves. The checks here mirror the server's, which re-checks everything.
+  const LEAD_COUNTRIES = Object.keys(DIAL).concat(['Other']);
+  const KNOWN_CODES = ['971', '966', '974', '965', '968', '973', '91', '65', '61', '44', '1'];
+  const COUNTRY_BY_CODE = { '971': 'UAE', '966': 'Saudi Arabia', '974': 'Qatar', '965': 'Kuwait', '968': 'Oman', '973': 'Bahrain', '91': 'India', '65': 'Singapore', '61': 'Australia', '44': 'UK', '1': 'USA' };
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const SHEETJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  const tidyText = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, max);
+  function leadCountry(c){
+    const k = String(c || '').trim().toLowerCase();
+    if (!k) return '';
+    return Object.keys(DIAL).find(n => n.toLowerCase() === k) || COUNTRY_ALIASES[k] || 'Other';
+  }
+  function leadMobile(m, country){
+    let s = String(m == null ? '' : m).trim().replace(/[^\d+]/g, '');
+    if (!s) return '';
+    if (s.indexOf('00') === 0) s = '+' + s.slice(2);
+    const split = (d) => { for (const k of KNOWN_CODES) if (d.indexOf(k) === 0 && d.length >= k.length + 6) return '+' + k + ' ' + d.slice(k.length); return '+' + d; };
+    if (s.charAt(0) === '+') { const d = s.slice(1).replace(/\D/g, ''); return d ? split(d) : ''; }
+    const d = s.replace(/\D/g, ''), code = DIAL[country];
+    if (code && d.indexOf(code) === 0 && d.length >= code.length + 7) return '+' + code + ' ' + d.slice(code.length);
+    const local = d.replace(/^0+/, '');
+    return code ? '+' + code + ' ' + local : local;
+  }
+  /** → { lead } or { reason } */
+  function cleanLead(raw){
+    const name = tidyText(raw.name, 120), email = tidyText(raw.email, 120);
+    if (!name) return { reason: 'Name is missing' };
+    if (!email && !String(raw.mobile == null ? '' : raw.mobile).replace(/\D/g, '')) return { reason: 'Needs an email or a mobile number' };
+    if (email && !EMAIL_RE.test(email)) return { reason: 'Email address looks wrong' };
+    let country = leadCountry(raw.country);
+    const mobile = leadMobile(raw.mobile, country), digits = mobile.replace(/\D/g, '');
+    if (mobile && (digits.length < 7 || digits.length > 15)) return { reason: 'Mobile number looks wrong' };
+    if (!country) { country = 'Other'; if (mobile.charAt(0) === '+') { const k = KNOWN_CODES.find(c => digits.indexOf(c) === 0); if (k) country = COUNTRY_BY_CODE[k]; } }
+    return { lead: { name: name, email: email, mobile: mobile, country: country, notes: tidyText(raw.notes, 500), source: tidyText(raw.source, 40) } };
+  }
+  function existingKeys(evId){
+    const em = new Set(), mob = new Set(), c = loadAtt(evId);
+    (c ? c.attendees : []).forEach(a => { if (a.email) em.add(a.email.toLowerCase()); const d = String(a.mobile || '').replace(/\D/g, ''); if (d) mob.add(d); });
+    return { em, mob };
+  }
+  const afterLeadsAdded = () => { syncSummary().then(changed => { if (changed) afterSync(); }); };
+
+  // — Add one lead —
+  let leadEvId = null, leadAdded = 0;
+  function openLeadSheet(evId){
+    const ev = findEvent(evId); if (!ev) return;
+    leadEvId = evId; leadAdded = 0;
+    $('leadIntro').textContent = 'For \u201c' + ev.topic + '\u201d. They\u2019ll appear in this webinar\u2019s list, tagged \u201cOffline lead\u201d.';
+    const sel = $('leadCountry');
+    if (!sel.options.length) LEAD_COUNTRIES.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+    sel.value = 'UAE'; resetLeadForm();
+    $('leadOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('leadOverlay').classList.add('open')));
+  }
+  function resetLeadForm(){
+    ['leadName', 'leadEmail', 'leadSource', 'leadNotes'].forEach(id => { $(id).value = ''; });
+    $('leadMobile').value = DIAL[$('leadCountry').value] ? '+' + DIAL[$('leadCountry').value] + ' ' : '';
+    $('leadEmails').checked = false; $('leadError').style.display = 'none'; $('leadSaveBtn').disabled = false; $('leadSaveBtn').textContent = 'Add lead';
+  }
+  function hideLead(){ $('leadOverlay').classList.remove('open'); setTimeout(() => $('leadOverlay').classList.add('hidden'), 280); if (leadAdded) afterLeadsAdded(); }
+  $('leadCountry').addEventListener('change', () => {          // choosing a country puts its code in the mobile box (same as the registration page)
+    const m = $('leadMobile'), v = m.value.trim(), code = DIAL[$('leadCountry').value];
+    if (!v || /^\+\d{1,3}$/.test(v)) m.value = code ? '+' + code + ' ' : '';
+  });
+  $('closeLeadBtn').addEventListener('click', hideLead);
+  $('leadOverlay').addEventListener('click', (e) => { if (e.target === $('leadOverlay')) hideLead(); });
+  $('addLeadBtn').addEventListener('click', () => openLeadSheet(currentEventId));
+  $('leadSaveBtn').addEventListener('click', async () => {
+    const err = (m) => { $('leadError').textContent = m; $('leadError').style.display = 'block'; };
+    $('leadError').style.display = 'none'; $('leadDone').style.display = 'none';
+    const raw = { name: $('leadName').value, email: $('leadEmail').value, mobile: $('leadMobile').value.trim() === '+' + DIAL[$('leadCountry').value] ? '' : $('leadMobile').value, country: $('leadCountry').value, notes: $('leadNotes').value, source: $('leadSource').value };
+    const c = cleanLead(raw);
+    if (!c.lead) return err(c.reason + '.');
+    const keys = existingKeys(leadEvId), L = c.lead;
+    if ((L.email && keys.em.has(L.email.toLowerCase())) || (L.mobile && keys.mob.has(L.mobile.replace(/\D/g, '')))) return err('This person is already on this webinar\u2019s list.');
+    $('leadSaveBtn').disabled = true; $('leadSaveBtn').textContent = 'Adding\u2026';
+    try {
+      const data = await apiPost({ action: 'addLeads', id: leadEvId, leads: [L], emails: $('leadEmails').checked });
+      if (data.error) throw new Error(data.error);
+      if (data.invalid && data.invalid.length) throw new Error(data.invalid[0].reason + '.');
+      if (data.duplicates && data.duplicates.length) throw new Error('This person is already on this webinar\u2019s list.');
+      leadAdded++;
+      const ev = findEvent(leadEvId); if (ev) { ev.registered = (ev.registered || 0) + 1; ev.offline = (ev.offline || 0) + 1; renderAll(); }
+      const name = L.name; resetLeadForm();
+      $('leadDone').textContent = '\u2713 Added ' + name + (data.emailed ? ' \u2014 a confirmation email is on its way' : '') + '. Add another, or close.'; $('leadDone').style.display = 'block';
+      $('leadName').focus();
+    } catch (e) { err(e.message || 'Could not save this lead.'); $('leadSaveBtn').disabled = false; $('leadSaveBtn').textContent = 'Add lead'; }
+  });
+
+  // — Upload an Excel / CSV file —
+  function parseCSV(text){
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    const first = text.split(/\r?\n/, 1)[0] || '';
+    const cnt = { ',': (first.match(/,/g) || []).length, ';': (first.match(/;/g) || []).length, '\t': (first.match(/\t/g) || []).length };
+    const best = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0], d = cnt[best] ? best : ',';
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+      else if (c === '"') q = true;
+      else if (c === d) { row.push(cell); cell = ''; }
+      else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+      else if (c !== '\r') cell += c;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows.map(r => r.map(x => x.trim())).filter(r => r.some(x => x !== ''));
+  }
+  let sheetJsPromise = null;
+  function loadSheetJS(){
+    if (window.XLSX) return Promise.resolve();
+    if (sheetJsPromise) return sheetJsPromise;
+    sheetJsPromise = new Promise((resolve, reject) => {
+      const sc = document.createElement('script'); sc.src = SHEETJS_URL; sc.onload = resolve;
+      sc.onerror = () => { sheetJsPromise = null; reject(new Error('The Excel reader couldn\u2019t load \u2014 check your internet, or save the file as CSV and upload that.')); };
+      document.head.appendChild(sc);
+    });
+    return sheetJsPromise;
+  }
+  const cellText = (v) => typeof v === 'number' ? (Number.isInteger(v) ? BigInt(v).toString() : String(v)) : String(v == null ? '' : v).trim();   // 971501234567 stays 971501234567 (not 9.7E+11)
+  async function readSheetFile(file){
+    if (/\.(csv|tsv|txt)$/i.test(file.name)) return parseCSV(await file.text());
+    await loadSheetJS();
+    const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    return window.XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }).map(r => r.map(cellText)).filter(r => r.some(x => x !== ''));
+  }
+  const UP_FIELDS = ['Name', 'Mobile', 'Email', 'Country', 'Notes', 'Source'];
+  const UP_PATTERNS = { Name: /^(full\s*name|name|client(\s*name)?|lead(\s*name)?|customer(\s*name)?|contact(\s*name)?|participant|person)$/i, Email: /e-?mail|mail\s*id/i, Mobile: /mobile|phone|whatsapp|\bcell\b|\btel\b|contact\s*(no|number)/i, Country: /country|residence|location|nri/i, Notes: /note|remark|comment|interest|detail/i, Source: /source|channel|referr|origin/i };
+  let upRows = [], upHeader = true;
+  function guessMapping(first){
+    const hasAt = first.some(c => String(c).indexOf('@') !== -1), map = {};
+    first.forEach((h, i) => { UP_FIELDS.forEach(f => { if (map[f] === undefined && UP_PATTERNS[f].test(String(h).trim())) map[f] = i; }); });
+    upHeader = !hasAt && Object.keys(map).length > 0;
+    if (!upHeader) { map.Name = 0; map.Email = 1; map.Mobile = 2; map.Country = 3; }      // no heading row: assume Name, Email, Mobile, Country
+    return map;
+  }
+  const colLabel = (i) => String.fromCharCode(65 + (i % 26));
+  function buildMapping(map){
+    const head = upRows[0] || [];
+    UP_FIELDS.forEach(f => {
+      const sel = $('upMap' + f); sel.innerHTML = '';
+      const none = document.createElement('option'); none.value = ''; none.textContent = f === 'Name' ? '\u2014 choose \u2014' : '\u2014 none \u2014'; sel.appendChild(none);
+      head.forEach((h, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = colLabel(i) + (upHeader ? ': ' + String(h).slice(0, 18) : ''); sel.appendChild(o); });
+      sel.value = map[f] !== undefined ? String(map[f]) : '';
+    });
+    $('upMap').classList.remove('hidden');
+  }
+  const upPick = (row, f) => { const v = $('upMap' + f).value; return v === '' ? '' : (row[Number(v)] || ''); };
+  let upReady = [];
+  function refreshUploadPreview(){
+    const evId = $('upEvent').value, keys = existingKeys(evId), seenE = new Set(), seenM = new Set();
+    const data = upHeader ? upRows.slice(1) : upRows;
+    const ready = [], dups = [], bad = [];
+    data.forEach((row, i) => {
+      const fileRow = i + (upHeader ? 2 : 1);
+      const c = cleanLead({ name: upPick(row, 'Name'), email: upPick(row, 'Email'), mobile: upPick(row, 'Mobile'), country: upPick(row, 'Country'), notes: upPick(row, 'Notes'), source: upPick(row, 'Source') });
+      if (!c.lead) { bad.push({ row: fileRow, name: tidyText(upPick(row, 'Name'), 30), reason: c.reason }); return; }
+      const L = c.lead, em = L.email.toLowerCase(), dg = L.mobile.replace(/\D/g, '');
+      if ((em && (keys.em.has(em) || seenE.has(em))) || (dg && (keys.mob.has(dg) || seenM.has(dg)))) { dups.push({ row: fileRow, name: L.name }); return; }
+      if (em) seenE.add(em); if (dg) seenM.add(dg);
+      ready.push(L);
+    });
+    upReady = ready;
+    const box = $('upPreview'); box.innerHTML = '';
+    const sum = document.createElement('div'); sum.className = 'up-sum';
+    [[ready.length, 'ready to add'], [dups.length, 'already on the list'], [bad.length, 'need a fix']].forEach(([v, l]) => { const d = document.createElement('div'); d.innerHTML = '<div class="v"></div><div class="l"></div>'; d.firstChild.textContent = v; d.lastChild.textContent = l; sum.appendChild(d); });
+    box.appendChild(sum);
+    if (ready.length) {
+      const t = document.createElement('table'); t.className = 'up-tbl';
+      t.innerHTML = '<tr><th>Name</th><th>Mobile</th><th>Country</th></tr>';
+      ready.slice(0, 5).forEach(L => { const r = t.insertRow(); [L.name, L.mobile || L.email, L.country].forEach(v => { r.insertCell().textContent = v; }); });
+      box.appendChild(t);
+      if (ready.length > 5) { const m = document.createElement('p'); m.className = 'up-issues'; m.textContent = '\u2026and ' + (ready.length - 5) + ' more.'; box.appendChild(m); }
+    }
+    if (bad.length || dups.length) {
+      const p = document.createElement('p'); p.className = 'up-issues';
+      p.textContent = [].concat(bad.slice(0, 6).map(b => 'Row ' + b.row + (b.name ? ' (' + b.name + ')' : '') + ': ' + b.reason), dups.length ? [dups.length + ' already on this webinar or repeated in the file \u2014 skipped.'] : [], bad.length > 6 ? ['\u2026and ' + (bad.length - 6) + ' more rows to fix.'] : []).join('  \u00b7  ');
+      box.appendChild(p);
+    }
+    box.classList.remove('hidden'); $('upOpts').classList.toggle('hidden', !ready.length);
+    $('upGo').classList.toggle('hidden', !ready.length); $('upGo').textContent = 'Add ' + ready.length + (ready.length === 1 ? ' lead' : ' leads');
+  }
+  function openUpload(evId){
+    const evs = (summary ? summary.events : []).slice().sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO));
+    const sel = $('upEvent'); sel.innerHTML = '';
+    evs.forEach(e => { const o = document.createElement('option'); o.value = e.id; o.textContent = e.topic + ' \u2014 ' + fmtIST(e.dateISO).split(' \u00b7 ')[0]; sel.appendChild(o); });
+    const up = evs.filter(e => endTime(e) >= Date.now()).sort((a, b) => new Date(a.dateISO) - new Date(b.dateISO))[0];
+    sel.value = evId || (up ? up.id : (evs[0] ? evs[0].id : ''));
+    $('upFile').value = ''; upRows = []; upReady = [];
+    ['upMap', 'upPreview', 'upOpts', 'upGo'].forEach(id => $(id).classList.add('hidden'));
+    $('upError').style.display = 'none'; $('upProgress').style.display = 'none'; $('upEmails').checked = false;
+    $('uploadOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('uploadOverlay').classList.add('open')));
+  }
+  function hideUpload(){ $('uploadOverlay').classList.remove('open'); setTimeout(() => $('uploadOverlay').classList.add('hidden'), 280); }
+  $('closeUploadBtn').addEventListener('click', hideUpload);
+  $('uploadOverlay').addEventListener('click', (e) => { if (e.target === $('uploadOverlay')) hideUpload(); });
+  $('uploadLeadsBtn').addEventListener('click', () => openUpload(currentEventId));
+  $('uploadTopBtn').addEventListener('click', () => openUpload(null));
+  $('upEvent').addEventListener('change', () => { if (upRows.length) refreshUploadPreview(); });
+  UP_FIELDS.forEach(f => $('upMap' + f).addEventListener('change', refreshUploadPreview));
+  $('upFile').addEventListener('change', async () => {
+    const f = $('upFile').files[0]; if (!f) return;
+    const err = (m) => { $('upError').textContent = m; $('upError').style.display = 'block'; };
+    $('upError').style.display = 'none'; $('upProgress').textContent = 'Reading ' + f.name + '\u2026'; $('upProgress').style.display = 'block';
+    try {
+      upRows = await readSheetFile(f);
+      $('upProgress').style.display = 'none';
+      if (upRows.length < 1 || (upRows.length === 1 && upHeaderGuess(upRows[0]))) return err('That file has no rows to add.');
+      if (upRows.length > 2001) return err('That file has more than 2,000 rows \u2014 please split it into smaller files.');
+      buildMapping(guessMapping(upRows[0])); refreshUploadPreview();
+    } catch (e) { $('upProgress').style.display = 'none'; err(e.message || 'Could not read that file.'); }
+  });
+  const upHeaderGuess = (row) => !row.some(c => String(c).indexOf('@') !== -1) && row.some(c => Object.values(UP_PATTERNS).some(p => p.test(String(c))));
+  $('upSample').addEventListener('click', () => {
+    const csv = '\ufeffName,Mobile,Email,Country,Notes,Source\r\nRahul Menon,+971 50 123 4567,rahul@example.com,UAE,Interested in SIF,Seminar\r\nFatima Khan,+966 55 123 4567,,Saudi Arabia,Call back next week,Referral\r\n';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = 'sample-leads.csv';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
+  $('upGo').addEventListener('click', async () => {
+    const evId = $('upEvent').value, leads = upReady.slice(), emails = $('upEmails').checked;
+    const err = (m) => { $('upError').textContent = m; $('upError').style.display = 'block'; };
+    $('upError').style.display = 'none'; $('upGo').disabled = true;
+    let added = 0, skipped = 0, emailed = 0, problems = 0;
+    try {
+      for (let i = 0; i < leads.length; i += 200) {
+        $('upProgress').textContent = 'Adding\u2026 ' + Math.min(i + 200, leads.length) + ' of ' + leads.length; $('upProgress').style.display = 'block';
+        const d = await apiPost({ action: 'addLeads', id: evId, leads: leads.slice(i, i + 200), emails: emails });
+        if (d.error) throw new Error(d.error);
+        added += d.added || 0; skipped += (d.duplicates || []).length; problems += (d.invalid || []).length; emailed += d.emailed || 0;
+      }
+      $('upProgress').textContent = '\u2713 Added ' + added + (added === 1 ? ' lead' : ' leads') + (skipped ? ' \u00b7 ' + skipped + ' skipped (already there)' : '') + (problems ? ' \u00b7 ' + problems + ' rejected' : '') + (emailed ? ' \u00b7 ' + emailed + ' confirmation emails on their way' : '') + '.';
+      ['upMap', 'upPreview', 'upOpts', 'upGo'].forEach(id => $(id).classList.add('hidden')); $('upFile').value = ''; upRows = [];
+      afterLeadsAdded();
+    } catch (e) {
+      err((added ? 'Added ' + added + ' before it stopped. ' : '') + (e.message || 'Something went wrong.') + ' Nothing is duplicated if you try again \u2014 anyone already added is skipped.');
+      if (added) afterLeadsAdded();
+    } finally { $('upGo').disabled = false; }
+  });
+
+  // — Excel export —
+  $('exportXlsxBtn').addEventListener('click', async () => {
+    const ev = findEvent(currentEventId), cached = ev && loadAtt(ev.id);
+    if (!cached) return;
+    try {
+      await loadSheetJS();
+      const rows = [['Name', 'Email', 'Mobile', 'Country', 'Source']].concat(cached.attendees.map(a => [a.name, a.email, a.mobile, a.country, a.src ? 'Offline lead' : 'Registration link']));
+      const wb = window.XLSX.utils.book_new(); window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(rows), 'Participants');
+      const out = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      a.download = ev.topic.replace(/[^\w\- ]+/g, '').trim().slice(0, 60) + ' - participants.xlsx';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch (e) { toast(e.message || 'Could not make the Excel file'); }
+  });
+
   // ── Link activity: how many people opened the registration link ────────────────────
   async function refreshVisitStats(){
     try {
@@ -1283,19 +1631,20 @@
     const box = $('visitCard');
     if (!ev || !visitStats || !visitStats.byEvent) { box.classList.add('hidden'); return; }
     const st = visitStats.byEvent[ev.id] || { unique: 0, visits: 0, last24h: 0, sources: {} };
-    const reg = ev.registered || 0;
+    const reg = (ev.registered || 0) - (ev.offline || 0);          // only people who registered through the link — offline leads didn't come from it
     // Conversion only makes sense when counting covered everyone who registered (people who signed up before counting began, or were typed in by hand, would push it over 100%).
     const rate = st.unique && st.unique >= reg ? Math.round(reg / st.unique * 100) + '%' : '\u2013';
     box.innerHTML = '';
     const h = document.createElement('h4'); h.textContent = 'Link activity'; box.appendChild(h);
     const nums = document.createElement('div'); nums.className = 'visit-nums';
-    [[st.unique, 'people opened the link'], [reg, 'registered'], [rate, 'registered of those']].forEach(([v, l]) => {
+    [[st.unique, 'people opened the link'], [reg, 'registered via link'], [rate, 'registered of those']].forEach(([v, l]) => {
       const d = document.createElement('div'); const a = document.createElement('div'); a.className = 'v'; a.textContent = v;
       const b = document.createElement('div'); b.className = 'l'; b.textContent = l; d.append(a, b); nums.appendChild(d);
     });
     box.appendChild(nums);
     const sub = document.createElement('p'); sub.className = 'visit-sub';
     sub.textContent = st.unique ? st.visits + (st.visits === 1 ? ' visit' : ' visits') + ' in all \u00b7 ' + st.last24h + (st.last24h === 1 ? ' person' : ' people') + ' in the last 24 hours' : 'No one has opened the link yet \u2014 or counting only started recently.';
+    if (ev.offline) sub.textContent += ' \u00b7 plus ' + ev.offline + (ev.offline === 1 ? ' offline lead' : ' offline leads') + ' added by you';
     box.appendChild(sub);
     const srcs = Object.keys(st.sources || {}).sort((a, b) => st.sources[b] - st.sources[a]).slice(0, 6);
     if (srcs.length) {
@@ -1320,8 +1669,9 @@
     if (!el) return;
     if (!visitStats || !visitStats.byEvent || !summary) { el.classList.add('hidden'); return; }
     let u = 0, v = 0;
-    summary.events.forEach(e => { const s = visitStats.byEvent[e.id]; if (s) { u += s.unique; v += s.visits; } });
-    el.textContent = u ? u + ' people opened a registration link (' + v + ' visits) \u00b7 ' + summary.stats.totalRegistrations + ' registered in all' : 'No registration-link visits counted yet.';
+    let viaLink = 0;
+    summary.events.forEach(e => { viaLink += (e.registered || 0) - (e.offline || 0); const s = visitStats.byEvent[e.id]; if (s) { u += s.unique; v += s.visits; } });
+    el.textContent = u ? u + ' people opened a registration link (' + v + ' visits) \u00b7 ' + viaLink + ' registered through a link' : 'No registration-link visits counted yet.';
     el.classList.remove('hidden');
   }
 
@@ -1458,7 +1808,7 @@
   // The pop-up. It opens by itself when a reminder is newly due (at launch, after a sync, or when 8:00 arrives while
   // the app is open); "Later" closes it and the green banner stays on the list until everyone is reminded.
   const popupShown = new Set();
-  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden') || !$('noticeOverlay').classList.contains('hidden') || !$('linksOverlay').classList.contains('hidden'); }
+  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden') || !$('noticeOverlay').classList.contains('hidden') || !$('linksOverlay').classList.contains('hidden') || !$('leadOverlay').classList.contains('hidden') || !$('uploadOverlay').classList.contains('hidden'); }
   function renderRemindPopup(due){
     const box = $('remindList'); box.innerHTML = '';
     due.forEach(d => {
@@ -1638,6 +1988,7 @@
     const who = document.createElement('div'); who.className = 'who';
     const name = document.createElement('div'); name.className = 'name'; name.textContent = a.name || '(no name)';
     who.appendChild(name);
+    if (a.src) { const t = document.createElement('div'); t.className = 'tag-lead'; t.textContent = 'Offline lead'; who.appendChild(t); }
     if (a.email) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = a.email; who.appendChild(s); }
     const line2 = [a.mobile, a.country && a.country !== 'Unknown' ? a.country : ''].filter(Boolean).join(' · ');
     if (line2) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = line2; who.appendChild(s); }
@@ -1693,7 +2044,7 @@
     const cached = loadAtt(ev.id);
     if (!cached) {
       $('attendeeSearch').classList.add('hidden');
-      $('exportBtn').classList.add('hidden');
+      $('exportBtn').classList.add('hidden'); $('exportXlsxBtn').classList.add('hidden');
       if (attError[ev.id]) {
         const box = document.createElement('div'); box.className = 'load-error';
         const p = document.createElement('p'); p.textContent = 'Couldn\u2019t load the participants. ' + attError[ev.id];
@@ -1708,7 +2059,7 @@
       return;
     }
     $('attendeeSearch').classList.toggle('hidden', cached.attendees.length < 6);
-    $('exportBtn').classList.toggle('hidden', cached.attendees.length === 0);
+    $('exportBtn').classList.toggle('hidden', cached.attendees.length === 0); $('exportXlsxBtn').classList.toggle('hidden', cached.attendees.length === 0);
     if (cached.attendees.length === 0) {
       list.innerHTML = '<p class="muted-note">No one has registered yet. Share the link to get sign-ups.</p>';
       return;
@@ -1791,8 +2142,8 @@
     const cached = ev && loadAtt(ev.id);
     if (!cached) return;
     const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const lines = [['Name', 'Email', 'Mobile', 'Country'].map(esc).join(',')]
-      .concat(cached.attendees.map(a => [a.name, a.email, a.mobile, a.country].map(esc).join(',')));
+    const lines = [['Name', 'Email', 'Mobile', 'Country', 'Source'].map(esc).join(',')]
+      .concat(cached.attendees.map(a => [a.name, a.email, a.mobile, a.country, a.src ? 'Offline lead' : 'Registration link'].map(esc).join(',')));
     const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
