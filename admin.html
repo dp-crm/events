@@ -677,7 +677,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '4.0';
+  const APP_VERSION = '4.1';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -1351,11 +1351,31 @@
                             : ist.weekday + ', ' + ist.day + ' ' + ist.month + ' at ' + ist.hour + ':' + ist.minute + ' ' + ist.dayPeriod + ' IST';
     return full(local) + ' ' + COUNTRY_TIME[name][1] + ' (' + istText + ')';
   }
-  function reminderDraft(a, ev){
-    return 'Dear ' + (a.name || 'Participant') + '\n\n' +
-      'This is a gentle reminder that the proposed webinar on ' + ev.topic + ' is scheduled on ' + participantTimeText(ev, a.country) + '. We will see you there.\n\n' +
-      (ev.meetingLink ? 'You can click this link and join the webinar: ' + ev.meetingLink + '\n\n' : '') +
-      'Regards\n' + ORGANISER_NAME;
+  // The six reminder messages. Each opens with a bold headline ("1 day to go"), then "Dear {name}". Times are in the person's own country.
+  // Which one is used is decided when you tap the WhatsApp icon (see attendeeRow); with no stage due it's the general reminder wording.
+  function durationWord(m){ m = Number(m) || 60; return m < 60 ? m + '-minute' : (m % 60 === 0 ? m / 60 : (m / 60).toFixed(1).replace(/\.0$/, '')) + '-hour'; }
+  function reminderDraft(a, ev, stage){
+    const name = a.name || 'Participant';
+    if (!stage) {
+      return 'Dear ' + name + '\n\n' +
+        'This is a gentle reminder that the proposed webinar on ' + ev.topic + ' is scheduled on ' + participantTimeText(ev, a.country) + '. We will see you there.\n\n' +
+        (ev.meetingLink ? 'You can click this link and join the webinar: ' + ev.meetingLink + '\n\n' : '') +
+        'Regards\n' + ORGANISER_NAME;
+    }
+    const full = participantTimeText(ev, a.country), clock = full.slice(full.indexOf(' at ') + 4);        // "Saturday, 17 October 2026 at 8:00 PM UAE time (9:30 PM IST)" → "8:00 PM UAE time (9:30 PM IST)"
+    const topic = '*' + String(ev.topic).replace(/\*/g, '') + '*', link = ev.meetingLink || '', sign = 'Regards\n' + ORGANISER_NAME;
+    const top = '*' + STAGE_HEAD(stage) + '*\n\nDear ' + name + ',\n\n';
+    const withLink = (label) => link ? label + link + '\n\n' : '';
+    let body;
+    switch (stage) {
+      case '7d': body = 'Please save the date. Our webinar on ' + topic + ' is on ' + full + '. It is a ' + durationWord(ev.durationMinutes) + ' session, and we will keep time for your questions at the end.\n\n' + withLink('Joining link: ') + sign; break;
+      case '3d': body = 'A gentle reminder that the webinar on ' + topic + ' is on ' + full + '. If there is a question you would like us to cover, just reply here.\n\n' + withLink('Joining link: ') + sign; break;
+      case '1d': body = 'The webinar on ' + topic + ' is on ' + full + '.' + (link ? ' Please keep this link handy:\n' + link : '') + '\n\nWe will see you there.\n' + ORGANISER_NAME; break;
+      case '5h': body = 'The webinar on ' + topic + ' starts at ' + clock + '.\n\n' + withLink('Joining link: ') + 'We will see you there.'; break;
+      case '2h': body = 'The webinar on ' + topic + ' starts at ' + clock + '. Please join a few minutes early.\n\n' + withLink('Link: '); break;
+      default:   body = 'We start in 30 minutes.' + (link ? ' Join here:\n' + link : '') + '\n\n' + topic + ' \u00b7 ' + clock; break;
+    }
+    return (top + body).replace(/\n+$/, '');
   }
 
   // ── Offline leads: add one by hand, or upload an Excel / CSV file ───────────────────
@@ -1704,12 +1724,16 @@
     copyText(shareUrl(linksEvent, tag), tag + ' link');
   });
 
-  // ── Reminders to send: pop-up at 8 AM the day before and on the day ─────────────────
-  // Times are this device's local time. A reminder is "due" from 8:00 AM the day before the
-  // webinar until 8:00 AM on the day (stage "prev"), then from 8:00 AM on the day until the
-  // webinar ends (stage "day"). Tapping the WhatsApp (or email) button next to a person ticks
-  // them for that stage, saved on this phone, so the pop-up knows who is still to be reminded.
-  const REMIND_HOUR = 8;
+  // ── Reminders to send: six moments before each webinar ─────────────────────────────
+  // 7 days, 3 days, 1 day, 5 hours, 2 hours and 30 minutes before the start (the same six moments as the Google Calendar alerts).
+  // From each moment until the next, that stage is "open": the WhatsApp icon next to a person opens THAT stage's message, and
+  // tapping it ticks them for that stage (saved on this phone), so the pop-up and banner know who is still to be reminded.
+  // Someone who missed an earlier stage is not sent it late — they get whichever stage is open now.
+  const WA_STAGES = [
+    { key: '7d', mins: 10080, head: '7 days to go' }, { key: '3d', mins: 4320, head: '3 days to go' }, { key: '1d', mins: 1440, head: '1 day to go' },
+    { key: '5h', mins: 300, head: '5 hours to go' }, { key: '2h', mins: 120, head: '2 hours to go' }, { key: '30m', mins: 30, head: '30 minutes to go' }
+  ];
+  const STAGE_HEAD = (key) => { const s = WA_STAGES.find(x => x.key === key); return s ? s.head : ''; };
   const LS_SENT = 'wm_rem_v1', LS_SKIP = 'wm_remskip_v1';
   function readJSON(k){ try { return JSON.parse(lsGet(k) || '{}') || {}; } catch (e) { return {}; } }
   let remSent = readJSON(LS_SENT), remSkip = readJSON(LS_SKIP);
@@ -1723,18 +1747,25 @@
   // Keyed by the webinar's date too: if a webinar is postponed, the new date is a fresh round of reminders — yesterday's ticks must not carry over.
   const skipKey = (ev, stage) => ev.id + '@' + ev.dateISO + '|' + stage;
   const sentKey = (evId, stage, a, ev) => (ev ? ev.id + '@' + ev.dateISO : evId) + '|' + stage + '|' + whoKey(a);
-  const STAGE_WORD = { prev: 'tomorrow', day: 'today' };
-
-  /** Which reminder stage is open for this webinar right now: 'prev', 'day', or null. */
+  /** Which stage is open for this webinar right now (a key like '1d'), or null: more than 7 days away, or already started. */
   function activeStage(ev, now){
-    now = now || new Date();
-    const start = new Date(ev.dateISO);
-    if (isNaN(start.getTime()) || now.getTime() >= endTime(ev)) return null;
-    const y = start.getFullYear(), m = start.getMonth(), d = start.getDate();      // the webinar's calendar day on this phone
-    if (now >= new Date(y, m, d, REMIND_HOUR)) return 'day';
-    if (now >= new Date(y, m, d - 1, REMIND_HOUR)) return 'prev';
-    return null;
+    const t = (now || new Date()).getTime(), start = new Date(ev.dateISO).getTime();
+    if (isNaN(start) || t >= start) return null;
+    let hit = null;
+    WA_STAGES.forEach(st => { if (start - t <= st.mins * 60000) hit = st.key; });
+    return hit;
   }
+  /** "5 hours to go \u2014 today 4:30 PM": the next stage after the open one (on this phone's clock). */
+  function nextStageText(ev){
+    const t = Date.now(), start = new Date(ev.dateISO).getTime(), cur = activeStage(ev);
+    if (isNaN(start) || t >= start) return '';
+    const nxt = WA_STAGES[(cur ? WA_STAGES.findIndex(x => x.key === cur) + 1 : 0)];
+    if (!nxt) return '';
+    const at = new Date(start - nxt.mins * 60000), today = new Date().toDateString() === at.toDateString();
+    return nxt.head + ' \u2014 ' + (today ? 'today ' : at.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+  let renderedStageSig = '';
+  const stageSig = () => { const ev = findEvent(currentEventId); return ev ? ev.id + ':' + (activeStage(ev) || '') : ''; };
   function remindedCount(ev, stage, list){ return list.filter(a => remSent[sentKey(ev.id, stage, a, ev)]).length; }
 
   /** Webinars whose reminders are open right now and not yet finished. */
@@ -1763,7 +1794,7 @@
     const strong = document.createElement('strong'); strong.textContent = '\ud83d\udd14 Reminders to send ';
     b.appendChild(strong);
     b.appendChild(document.createTextNode(one
-      ? '— ' + STAGE_WORD[one.stage] + '\u2019s webinar \u201c' + one.ev.topic + '\u201d · ' + one.done + ' of ' + one.total + ' done. Tap to open.'
+      ? '— ' + STAGE_HEAD(one.stage) + ': \u201c' + one.ev.topic + '\u201d · ' + one.done + ' of ' + one.total + ' done. Tap to open.'
       : '— ' + due.length + ' webinars. Tap to open.'));
     b.classList.remove('hidden');
   }
@@ -1776,11 +1807,11 @@
     if (!ev || !stage || remSkip[skipKey(ev, stage)] || !cached || !cached.attendees.length) { strip.classList.add('hidden'); return; }
     const done = remindedCount(ev, stage, cached.attendees), total = cached.attendees.length;
     strip.innerHTML = '';
-    const strong = document.createElement('strong'); strong.textContent = '\ud83d\udd14 Reminder due (' + STAGE_WORD[stage] + '): ' + done + ' of ' + total + ' sent. ';
+    const strong = document.createElement('strong'); strong.textContent = '\ud83d\udd14 ' + STAGE_HEAD(stage) + ': ' + done + ' of ' + total + ' sent. ';
     strip.appendChild(strong);
     strip.appendChild(document.createTextNode(done >= total
       ? 'All done — thank you!'
-      : 'Tap the green WhatsApp icon next to each person and press send.'));
+      : 'Tap the green WhatsApp icon next to each person \u2014 the message is already written \u2014 and press send.'));
     if (done < total) {
       const skip = document.createElement('button'); skip.className = 'ghost-btn small'; skip.style.display = 'inline-flex'; skip.style.marginLeft = '8px'; skip.textContent = 'Mark all done';
       skip.addEventListener('click', () => { remSkip[skipKey(ev, stage)] = Date.now(); lsSet(LS_SKIP, JSON.stringify(remSkip)); renderRemindStrip(); refreshReminders(); });
@@ -1793,7 +1824,7 @@
     if (!stage) return;
     remSent[sentKey(ev.id, stage, a, ev)] = Date.now();
     lsSet(LS_SENT, JSON.stringify(remSent));
-    if (rowEl) setRowReminded(rowEl, true);
+    if (rowEl) setRowReminded(rowEl, true, '\u2713 ' + STAGE_HEAD(stage) + ' sent');
     renderRemindStrip();
     refreshReminders();
   }
@@ -1813,7 +1844,7 @@
     const box = $('remindList'); box.innerHTML = '';
     due.forEach(d => {
       const card = document.createElement('div'); card.className = 'remind-card';
-      const w = document.createElement('div'); w.className = 'when'; w.textContent = d.stage === 'prev' ? 'Tomorrow' : 'Today';
+      const w = document.createElement('div'); w.className = 'when'; w.textContent = STAGE_HEAD(d.stage);
       const t = document.createElement('div'); t.className = 'topic'; t.textContent = d.ev.topic;
       const m = document.createElement('div'); m.className = 'meta'; m.textContent = fmtIST(d.ev.dateISO) + ' · ' + d.done + ' of ' + d.total + ' reminded';
       const row = document.createElement('div'); row.className = 'row';
@@ -1834,10 +1865,16 @@
     setTimeout(() => $('remindOverlay').classList.add('hidden'), 280);
   }
   /** Recalculate what's due; update the banner; optionally pop up for anything newly due. */
+  const deepRemind = new URLSearchParams(location.search).get('remind') || '';
+  let deepRemindDone = false;
+  function tryDeepRemind(){ if (deepRemind && !deepRemindDone && summary && findEvent(deepRemind)) { deepRemindDone = true; openDetail(deepRemind); } }
   function refreshReminders(popup){
+    if (activeView() === 'detail' && stageSig() !== renderedStageSig) { renderAttendees(); renderRemindStrip(); }      // a new stage opened: untick the rows, swap the messages
+    tryDeepRemind();
     const due = dueReminders();
     renderRemindBanner(due);
     renderNoticeBanner();
+    if (!$('remindOverlay').classList.contains('hidden')) { if (due.length) renderRemindPopup(due); else hideRemind(); }     // a pop-up left open follows the clock: new stage, new headline
     if (!popup || !due.length || overlayOpen()) return;
     const fresh = due.filter(d => !popupShown.has(skipKey(d.ev, d.stage)));
     if (!fresh.length) return;
@@ -1997,17 +2034,27 @@
     const ph = phoneLinks(a.mobile, a.country);
     if (ph) {
       actions.appendChild(actionLink('call', 'tel:' + ph.tel, 'Call ' + (a.name || ''), false));
-      const waBtn = actionLink('wa', 'https://wa.me/' + ph.wa + '?text=' + encodeURIComponent(reminderDraft(a, ev)), 'WhatsApp ' + (a.name || ''), true);
-      waBtn.addEventListener('click', () => markReminded(ev, stage, a, row));
+      const waBase = 'https://wa.me/' + ph.wa + '?text=';
+      const waBtn = actionLink('wa', waBase + encodeURIComponent(reminderDraft(a, ev, stage)), 'WhatsApp ' + (a.name || ''), true);
+      // Which message? Decided at the moment you tap: the stage that is open now, unless this person already got it.
+      waBtn.addEventListener('click', (e) => {
+        const st = activeStage(ev);
+        if (st && remSent[sentKey(ev.id, st, a, ev)]) {
+          const nxt = nextStageText(ev);
+          if (!confirm('\u201c' + STAGE_HEAD(st) + '\u201d has already been sent to ' + (a.name || 'this person') + '.' + (nxt ? '\n\nNext: ' + nxt + '.' : '') + '\n\nSend it again?')) { e.preventDefault(); return; }
+        }
+        waBtn.href = waBase + encodeURIComponent(reminderDraft(a, ev, st));        // the browser opens the link after this handler, so this is the one it uses
+        markReminded(ev, st, a, row);
+      });
       actions.appendChild(waBtn);
     }
     if (a.email) {
       const mailBtn = actionLink('mail', 'mailto:' + a.email + '?subject=' + encodeURIComponent('A gentle reminder: ' + ev.topic) + '&body=' + encodeURIComponent(reminderDraft(a, ev).replace(/\n/g, '\r\n')), 'Email ' + (a.name || ''), false);
-      mailBtn.addEventListener('click', () => markReminded(ev, stage, a, row));
+      mailBtn.addEventListener('click', () => markReminded(ev, activeStage(ev), a, row));
       actions.appendChild(mailBtn);
     }
     row.append(who, actions);
-    if (stage && remSent[sentKey(ev.id, stage, a, ev)]) setRowReminded(row, true);
+    if (stage && remSent[sentKey(ev.id, stage, a, ev)]) setRowReminded(row, true, '\u2713 ' + STAGE_HEAD(stage) + ' sent');
     return row;
   }
 
@@ -2036,6 +2083,7 @@
   }
 
   function renderAttendees(){
+    renderedStageSig = stageSig();
     const ev = findEvent(currentEventId);
     const list = $('attendeeList');
     list.innerHTML = '';
