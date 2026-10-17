@@ -328,6 +328,10 @@
   .tag-att.no{ color:#B5651D; border-color:#B5651D; }
   .grp-sum{ font-size:.84rem; color:var(--ink-soft); margin:6px 0 10px; line-height:1.5; }
   textarea.field.tall{ min-height:190px; }
+  .rec-item{ justify-content:flex-start; gap:12px; }
+  .rec-item input{ width:22px; height:22px; flex:none; }
+  .rec-item .main{ flex:1; min-width:0; }
+  .rec-item .rtag{ font-size:.74rem; color:var(--ink-soft); border:1px solid var(--line); border-radius:999px; padding:1px 8px; flex:none; }
   .map-item{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); cursor:pointer; }
   .map-item:active{ background:var(--paper); }
   .map-item .nm{ font-weight:600; }
@@ -490,6 +494,7 @@
     </div>
     <div id="umCard" class="visit-card hidden"></div>
     <div class="seg-row hidden" id="attSegs"></div>
+    <p class="muted-note hidden" id="attSegHint" style="margin:-4px 0 10px;"></p>
     <input class="field search-field hidden" id="attendeeSearch" type="search" placeholder="Search name, email or number" autocomplete="off" aria-label="Search participants">
     <div id="attendeeList"></div>
   </div>
@@ -590,6 +595,24 @@
     <p class="form-error" id="upError" style="display:none;"></p>
     <button class="primary-btn hidden" id="upGo" style="margin-top:14px;">Add leads</button>
     <p class="muted-note" id="upProgress" style="display:none; margin-top:10px; text-align:center;"></p>
+  </div>
+</div>
+
+<!-- Reconcile: tick who actually attended -->
+<div id="recOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3 id="recTitle">Reconcile attendance</h3>
+      <button id="closeRecBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted-note" id="recIntro" style="margin-bottom:8px;"></p>
+    <input class="field" id="recSearch" placeholder="Search by name, email or number" autocomplete="off">
+    <div id="recList" style="margin-top:6px;"></div>
+    <p class="muted-note hidden" id="recEmpty" style="margin-top:8px;"></p>
+    <div id="recExtra" style="margin-top:10px;"></div>
+    <p class="form-error" id="recError" style="display:none;"></p>
+    <button class="primary-btn" id="recConfirm" style="margin-top:14px;" disabled>Tick the people who attended</button>
   </div>
 </div>
 
@@ -789,7 +812,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '4.8';
+  const APP_VERSION = '5.0';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -2078,6 +2101,7 @@
   }
   /** From a registered person: did they join under another name? Pick that attendee — or just flip Yes / No. */
   function openMapForRegistrant(ev, a){
+    if (a.att === 'Y') { openReconcile(a); return; }          // an attended person: reconcile / merge
     const items = (unmatchedMap[ev.id] || []).slice();
     const attended = a.att === 'Y';
     showMap({
@@ -2089,6 +2113,91 @@
                        : [{ label: 'Mark as attended (no match needed)', run: () => mapCall(ev, { action: 'setAttendance', to: regTo(a), value: 'Yes' }, '\u201c' + a.name + '\u201d marked as attended') }]
     });
   }
+  // ── Reconcile ───────────────────────────────────────────────────────────────────────
+  // 1) On an ATTENDED entry — typically someone who joined as "Joe Laptop" and was added from the attendance file because nobody
+  //    matched them: tick the registered participant(s) they really are. Those are marked attended, and the extra entry is merged
+  //    into them (an offline lead's own row is removed; their name and email go into the participant's Notes).
+  // 2) "Mark attended…" on the Didn't attend list: tick registered people who attended, with no entry to merge.
+  // The attendance file isn't kept, so both work from the participant list itself.
+  let recCtx = null, recSel = new Set(), recRemoveBox = null;
+  function openReconcile(from){
+    const ev = findEvent(currentEventId), cached = ev && loadAtt(ev.id);
+    if (!ev || !cached) { toast('The participant list is still loading \u2014 try again in a moment'); return; }
+    const merge = !!(from && from.att === 'Y');
+    const list = cached.attendees.filter(a => a.att !== 'Y').slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    recCtx = { ev: ev, list: list, merge: merge, from: merge ? from : null }; recSel = new Set(); recRemoveBox = null;
+    const nm = merge ? (from.name || from.email || from.mobile) : '';
+    $('recTitle').textContent = merge ? 'Reconcile \u201c' + nm + '\u201d' : 'Mark as attended';
+    $('recIntro').textContent = merge
+      ? '\u201c' + nm + '\u201d attended but is not matched to a registered participant. Tick the registered participant(s) this really is. Everyone you tick is marked as attended and merged with this entry.'
+      : 'Everyone below is not marked as attended yet. Tick the people who actually attended \u2014 for example, they joined under another name or email \u2014 then confirm.';
+    const ex = $('recExtra'); ex.innerHTML = '';
+    if (merge) {
+      if (from.src) {
+        const lab = document.createElement('label'); lab.className = 'notify-row'; lab.style.cssText = 'display:flex; gap:10px; align-items:flex-start; margin:6px 0;';
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true; cb.style.cssText = 'width:20px; height:20px; flex:none; margin-top:2px;'; recRemoveBox = cb;
+        const sp = document.createElement('span'); sp.style.fontSize = '.86rem'; sp.textContent = 'Remove \u201c' + nm + '\u201d as a separate entry after merging (their name and contact are kept in the participant\u2019s Notes)';
+        lab.append(cb, sp); ex.appendChild(lab);
+      } else {
+        const np = document.createElement('p'); np.className = 'muted-note'; np.textContent = 'This person registered through the link, so their entry stays. The people you tick are just marked as attended.'; ex.appendChild(np);
+      }
+      const un = document.createElement('button'); un.type = 'button'; un.className = 'link-btn'; un.style.cssText = 'font-size:.84rem; margin-top:4px;'; un.textContent = 'Mark \u201c' + nm + '\u201d as did not attend instead';
+      un.addEventListener('click', async () => { if (!confirm('Mark \u201c' + nm + '\u201d as did not attend?')) return; try { const d = await apiPost({ action: 'setAttendance', id: ev.id, to: regTo(from), value: 'No' }); if (d.error) throw new Error(d.error); hideRec(); afterLeadsAdded(); toast('\u201c' + nm + '\u201d marked as did not attend'); } catch (e) { $('recError').textContent = e.message || 'Could not save.'; $('recError').style.display = 'block'; } });
+      ex.appendChild(un);
+    }
+    $('recSearch').value = ''; $('recError').style.display = 'none';
+    renderRecList();
+    $('recOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('recOverlay').classList.add('open')));
+  }
+  function updateRecCount(){
+    const n = recSel.size, b = $('recConfirm'), merge = recCtx && recCtx.merge;
+    b.disabled = n === 0;
+    b.textContent = n ? (merge ? 'Confirm \u2014 merge into ' + n + (n === 1 ? ' participant' : ' participants') : 'Confirm \u2014 mark ' + n + (n === 1 ? ' person' : ' people') + ' as attended') : (merge ? 'Tick the registered participant(s) this is' : 'Tick the people who attended');
+  }
+  function renderRecList(){
+    const q = $('recSearch').value.trim().toLowerCase(), box = $('recList'); box.innerHTML = '';
+    let shown = 0;
+    recCtx.list.forEach((a, i) => {
+      if (q && !((a.name || '') + ' ' + (a.email || '') + ' ' + (a.mobile || '')).toLowerCase().includes(q)) return;
+      shown++;
+      const row = document.createElement('label'); row.className = 'map-item rec-item'; row.dataset.who = a.name || a.email || a.mobile;
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = recSel.has(i);
+      cb.addEventListener('change', () => { if (cb.checked) recSel.add(i); else recSel.delete(i); updateRecCount(); });
+      const main = document.createElement('div'); main.className = 'main';
+      const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = a.name || a.email || a.mobile; main.appendChild(nm);
+      const sub = [a.email, a.mobile].filter(Boolean).join(' \u00b7 '); if (sub) { const sb = document.createElement('div'); sb.className = 'sub'; sb.textContent = sub; main.appendChild(sb); }
+      const tag = document.createElement('span'); tag.className = 'rtag'; tag.textContent = a.att === 'N' ? 'Didn\u2019t attend' : 'Not recorded';
+      row.append(cb, main, tag); box.appendChild(row);
+    });
+    const em = $('recEmpty');
+    em.textContent = shown ? '' : (recCtx.list.length ? 'No match for \u201c' + $('recSearch').value.trim() + '\u201d.' : 'Everyone registered is already marked as attended.');
+    em.classList.toggle('hidden', !!shown);
+    updateRecCount();
+  }
+  function hideRec(){ $('recOverlay').classList.remove('open'); setTimeout(() => $('recOverlay').classList.add('hidden'), 280); }
+  $('closeRecBtn').addEventListener('click', hideRec);
+  $('recOverlay').addEventListener('click', (e) => { if (e.target === $('recOverlay')) hideRec(); });
+  $('recSearch').addEventListener('input', () => { if (recCtx) renderRecList(); });
+  $('recConfirm').addEventListener('click', async () => {
+    if (!recCtx || !recSel.size) return;
+    const picks = [...recSel].sort((a, b) => a - b).map(i => recCtx.list[i]), merge = recCtx.merge, from = recCtx.from;
+    const names = picks.slice(0, 8).map(a => a.name || a.email).join(', ') + (picks.length > 8 ? ', \u2026and ' + (picks.length - 8) + ' more' : '');
+    const remove = merge && recRemoveBox && recRemoveBox.checked, fromName = merge ? (from.name || from.email || from.mobile) : '';
+    const msg = merge
+      ? 'Merge \u201c' + fromName + '\u201d into ' + names + ' and mark ' + (picks.length === 1 ? 'them' : 'them all') + ' as attended?' + (remove ? '\n\n\u201c' + fromName + '\u201d will be removed as a separate entry.' : '')
+      : 'Mark ' + picks.length + (picks.length === 1 ? ' person' : ' people') + ' as attended?\n\n' + names;
+    if (!confirm(msg)) return;
+    const btn = $('recConfirm'); btn.disabled = true; btn.textContent = 'Saving\u2026'; $('recError').style.display = 'none';
+    try {
+      const d = merge ? await apiPost({ action: 'mergeAttendance', id: recCtx.ev.id, from: regTo(from), to: picks.map(regTo), removeFrom: !!remove })
+                      : await apiPost({ action: 'setAttendanceMany', id: recCtx.ev.id, value: 'Yes', people: picks.map(regTo) });
+      if (d.error) throw new Error(d.error);
+      hideRec(); umFetched = {}; loadUnmatched(recCtx.ev, true); afterLeadsAdded();
+      toast((merge ? 'Merged \u2014 ' : '') + d.marked + (d.marked === 1 ? ' person' : ' people') + ' marked as attended' + (d.removed ? ' \u00b7 extra entry removed' : '') + (d.notFound && d.notFound.length ? ' (' + d.notFound.length + ' not found)' : ''));
+    } catch (e) { $('recError').textContent = e.message || 'Could not save \u2014 nothing was changed.'; $('recError').style.display = 'block'; updateRecCount(); }
+  });
+
   $('closeMapBtn').addEventListener('click', hideMap);
   $('mapOverlay').addEventListener('click', (e) => { if (e.target === $('mapOverlay')) hideMap(); });
   $('mapSearch').addEventListener('input', () => { if (mapCtx) renderMapList(); });
@@ -2460,7 +2569,7 @@
   // The pop-up. It opens by itself when a reminder is newly due (at launch, after a sync, or when 8:00 arrives while
   // the app is open); "Later" closes it and the green banner stays on the list until everyone is reminded.
   const popupShown = new Set();
-  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden') || !$('noticeOverlay').classList.contains('hidden') || !$('linksOverlay').classList.contains('hidden') || !$('leadOverlay').classList.contains('hidden') || !$('uploadOverlay').classList.contains('hidden') || !$('attOverlay').classList.contains('hidden') || !$('grpOverlay').classList.contains('hidden') || !$('mapOverlay').classList.contains('hidden'); }
+  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden') || !$('noticeOverlay').classList.contains('hidden') || !$('linksOverlay').classList.contains('hidden') || !$('leadOverlay').classList.contains('hidden') || !$('uploadOverlay').classList.contains('hidden') || !$('attOverlay').classList.contains('hidden') || !$('grpOverlay').classList.contains('hidden') || !$('mapOverlay').classList.contains('hidden') || !$('recOverlay').classList.contains('hidden'); }
   function renderRemindPopup(due){
     const box = $('remindList'); box.innerHTML = '';
     due.forEach(d => {
@@ -2648,6 +2757,7 @@
     who.appendChild(name);
     if (a.src) { const t = document.createElement('div'); t.className = 'tag-lead'; t.textContent = 'Offline lead'; who.appendChild(t); }
     if (a.att) { const t = document.createElement('div'); t.className = 'tag-att ' + (a.att === 'Y' ? 'yes' : 'no'); t.textContent = a.att === 'Y' ? 'Attended' : 'Didn\u2019t attend'; who.appendChild(t); }
+    if (a.att === 'Y' && attSegment === 'Y') { const rb = document.createElement('button'); rb.type = 'button'; rb.className = 'ghost-btn small rec-btn'; rb.textContent = 'Reconcile'; rb.style.marginTop = '6px'; rb.setAttribute('aria-label', 'Reconcile ' + (a.name || '') + ' with registered participants'); rb.addEventListener('click', (e) => { e.stopPropagation(); openReconcile(a); }); who.appendChild(rb); }
     if (a.email) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = a.email; who.appendChild(s); }
     const line2 = [a.mobile, a.country && a.country !== 'Unknown' ? a.country : ''].filter(Boolean).join(' · ');
     if (line2) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = line2; who.appendChild(s); }
@@ -2707,7 +2817,7 @@
   function renderSegments(list){
     const box = $('attSegs');
     const n = { Y: 0, N: 0, U: 0 }; list.forEach(a => { n[a.att || 'U']++; });
-    if (!list.some(a => a.att)) { box.classList.add('hidden'); attSegment = 'all'; return; }
+    if (!list.some(a => a.att)) { box.classList.add('hidden'); $('attSegHint').classList.add('hidden'); attSegment = 'all'; return; }
     box.innerHTML = '';
     [['all', 'All', list.length], ['Y', 'Attended', n.Y], ['N', 'Didn\u2019t attend', n.N], ['U', 'Not recorded', n.U]].forEach(([k, label, count]) => {
       if (k === 'U' && !count) return;
@@ -2715,6 +2825,11 @@
       b.addEventListener('click', () => { attSegment = k; attLimit = PAGE_SIZE; renderAttendees(); });
       box.appendChild(b);
     });
+    const rb = document.createElement('button'); rb.type = 'button'; rb.className = 'seg-chip'; rb.id = 'markAttendedBtn'; rb.textContent = 'Mark attended\u2026'; rb.style.marginLeft = 'auto';
+    rb.addEventListener('click', () => openReconcile()); box.appendChild(rb);
+    const hint = $('attSegHint');
+    hint.textContent = attSegment === 'Y' ? 'Joined under another name or email? Tap Reconcile on that person, tick the registered participant(s) they really are, and confirm \u2014 they are marked attended and merged.' : 'Someone attended under another name? Tap \u201cMark attended\u2026\u201d, tick them and confirm. (To merge an extra attended entry into a registered person, use Reconcile on the Attended list.)';
+    hint.classList.toggle('hidden', attSegment !== 'Y' && attSegment !== 'N');
     box.classList.remove('hidden');
   }
   function appendRows(ev){
