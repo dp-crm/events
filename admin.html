@@ -328,6 +328,14 @@
   .tag-att.no{ color:#B5651D; border-color:#B5651D; }
   .grp-sum{ font-size:.84rem; color:var(--ink-soft); margin:6px 0 10px; line-height:1.5; }
   textarea.field.tall{ min-height:190px; }
+  .map-item{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .map-item:active{ background:var(--paper); }
+  .map-item .nm{ font-weight:600; }
+  .map-item .sub{ font-size:.8rem; color:var(--ink-soft); }
+  .um-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-top:1px solid var(--line); }
+  .um-row .nm{ font-weight:600; }
+  .um-row .sub{ font-size:.8rem; color:var(--ink-soft); }
+  .um-row .btns{ display:flex; gap:6px; flex:none; }
   .att-row.stack{ flex-direction:column; align-items:stretch; gap:5px; padding:8px 10px; border:1px solid var(--line); border-radius:12px; }
   .att-row.need{ border-color:#C0392B; }
   .att-row .pair{ font-size:.82rem; line-height:1.5; }
@@ -480,6 +488,7 @@
         Export
       </button>
     </div>
+    <div id="umCard" class="visit-card hidden"></div>
     <div class="seg-row hidden" id="attSegs"></div>
     <input class="field search-field hidden" id="attendeeSearch" type="search" placeholder="Search name, email or number" autocomplete="off" aria-label="Search participants">
     <div id="attendeeList"></div>
@@ -581,6 +590,23 @@
     <p class="form-error" id="upError" style="display:none;"></p>
     <button class="primary-btn hidden" id="upGo" style="margin-top:14px;">Add leads</button>
     <p class="muted-note" id="upProgress" style="display:none; margin-top:10px; text-align:center;"></p>
+  </div>
+</div>
+
+<!-- Match a person by hand -->
+<div id="mapOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3 id="mapTitle">Match</h3>
+      <button id="closeMapBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted-note" id="mapIntro" style="margin-bottom:8px;"></p>
+    <input class="field" id="mapSearch" placeholder="Search by name, email or number" autocomplete="off">
+    <div id="mapList" style="margin-top:6px;"></div>
+    <p class="muted-note hidden" id="mapEmpty" style="margin-top:8px;"></p>
+    <div id="mapExtra" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;"></div>
+    <p class="form-error" id="mapError" style="display:none;"></p>
   </div>
 </div>
 
@@ -763,7 +789,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '4.7';
+  const APP_VERSION = '4.8';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -1398,6 +1424,7 @@
 
   const ICONS = {
     call: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>',
+    map: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
     pic: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/></svg>',
     mail: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
     wa: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12.36 7.56L4 20l1.06-4.44A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8.5 10.5c.3 2 2.7 4.4 4.7 4.7.9.1 1.6-.5 1.8-1.2l.1-.5-1.8-1-1 .5c-.6-.3-1.6-1.3-1.9-1.9l.5-1-1-1.8-.5.1c-.7.2-1.3.9-1.2 1.8Z" fill="currentColor" stroke="none"/></svg>'
@@ -1805,7 +1832,7 @@
   const ATT_SKIP_KEY = 'wm_att_skip_v1';          // names you chose to skip (the host's account, say) — skipped by default next time
   const attSkipped = () => { try { return JSON.parse(lsGet(ATT_SKIP_KEY) || '[]'); } catch (e) { return []; } };
   function rememberSkip(name, on){ const k = normName(name); if (!k) return; const a = attSkipped().filter(x => x !== k); if (on) a.push(k); lsSet(ATT_SKIP_KEY, JSON.stringify(a.slice(-100))); }
-  let attFix = {}, attPayload = [], attNew = [];  // attFix[person].v: '' not decided · 'new' add as a new lead · 'skip' · or the number of the registrant you picked
+  let attFix = {}, attPayload = [], attNew = [], attLog = [];  // attFix[person].v: '' not decided · 'new' add as a new lead · 'skip' · or the number of the registrant you picked
   function lev(a, b){
     const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
     let prev = Array.from({ length: n + 1 }, (_, j) => j);
@@ -1868,9 +1895,10 @@
       vals.push(v);
       if (r.kind === 'exact') r.regs.forEach(x => marked.add(x)); else if (v !== '' && v !== 'new' && v !== 'skip') marked.add(Number(v));
     });
-    attPayload = []; attNew = []; let need = 0;
+    attPayload = []; attNew = []; attLog = []; let need = 0;
     present.forEach((p, i) => {
       const r = res[i], v = vals[i];
+      if (r.kind !== 'exact' && v !== '') { const b = { name: p.name, email: p.email, mobile: p.mobile, minutes: p.minutes }; attLog.push(v === 'new' ? Object.assign(b, { status: 'Added as lead' }) : v === 'skip' ? Object.assign(b, { status: 'Unmatched' }) : Object.assign(b, { status: 'Mapped', mappedTo: regs[Number(v)].name })); }      // remembered on the Attendance Log tab, so you can match them later
       if (r.kind === 'exact') attPayload.push({ name: p.name, email: p.email, mobile: p.mobile });
       else if (v === 'new') attNew.push({ name: p.name, email: p.email, mobile: p.mobile, source: 'Attended webinar (not registered)', notes: 'Attended' + (p.minutes != null ? ' ' + Math.round(p.minutes) + ' min' : '') + ' \u2014 not registered' });
       else if (v === '') need++;
@@ -1879,6 +1907,8 @@
     const sum = document.createElement('div'); sum.className = 'up-sum';
     [[present.length, 'in the file'], [marked.size, 'registered \u2192 Yes'], [regs.length - marked.size, 'registered \u2192 No']].forEach(([v, l]) => { const d = document.createElement('div'); d.innerHTML = '<div class="v"></div><div class="l"></div>'; d.firstChild.textContent = v; d.lastChild.textContent = l; sum.appendChild(d); });
     box.appendChild(sum);
+    const missing = regs.filter((r, i) => !marked.has(i));
+    if (missing.length) { const mp = document.createElement('p'); mp.className = 'up-issues'; mp.textContent = 'Registered but not found in the file (' + missing.length + ') \u2014 these will be marked No: ' + missing.slice(0, 12).map(r => r.name || r.email || r.mobile).join(', ') + (missing.length > 12 ? ', \u2026and ' + (missing.length - 12) + ' more' : '') + '. If one of them joined under another name or email, match that person in the list below.'; box.appendChild(mp); }
     const notes = [];
     if (short) notes.push(short + (short === 1 ? ' person' : ' people') + ' stayed less than ' + min + ' minutes and will be marked No.');
     if (attNew.length) notes.push(attNew.length + ' new attendee' + (attNew.length === 1 ? '' : 's') + ' (not registered) will be added to this webinar as leads, marked Yes.');
@@ -1964,14 +1994,104 @@
     const err = (m) => { $('attError').textContent = m; $('attError').style.display = 'block'; };
     $('attError').style.display = 'none'; $('attGo').disabled = true; $('attProgress').textContent = 'Saving\u2026'; $('attProgress').style.display = 'block';
     try {
-      const d = await apiPost({ action: 'markAttendance', id: attEvId, attended: attPayload, newLeads: attNew });
+      const d = await apiPost({ action: 'markAttendance', id: attEvId, attended: attPayload, newLeads: attNew, log: attLog });
       if (d.error) throw new Error(d.error);
       $('attProgress').textContent = '\u2713 Marked: ' + d.yes + ' attended, ' + d.no + ' didn\u2019t' + (d.leadsAdded ? '. ' + d.leadsAdded + ' new attendee' + (d.leadsAdded === 1 ? '' : 's') + ' added as leads (attended).' : '.');
       ['attMap', 'attPreview', 'attGo'].forEach(id => $(id).classList.add('hidden')); $('attFile').value = ''; attRows = [];
+      umFetched = {}; loadUnmatched(findEvent(attEvId), true);
       afterLeadsAdded();
     } catch (e) { $('attProgress').style.display = 'none'; err(e.message || 'Something went wrong \u2014 nothing was changed.'); }
     finally { $('attGo').disabled = false; }
   });
+
+  // ── Matching by hand, any time ───────────────────────────────────────────────────────
+  // People who join Meet under another name or email can't be matched automatically. The attendance upload remembers them
+  // (the "Attendance Log" tab); here you map each to a registered participant, add them as a lead, or skip them — and you can also
+  // start from a registered person (the link button on their row) or just flip Yes / No.
+  let unmatchedMap = {}, umFetched = {}, mapCtx = null;
+  async function loadUnmatched(ev, force){
+    if (!ev) return;
+    if (!(ev.attended || ev.absent)) { unmatchedMap[ev.id] = []; renderUnmatchedCard(ev); return; }
+    if (!force && umFetched[ev.id] && Date.now() - umFetched[ev.id] < 60000) return;
+    umFetched[ev.id] = Date.now();
+    try { const d = await apiGet({ action: 'unmatched', id: ev.id }); unmatchedMap[ev.id] = Array.isArray(d.items) ? d.items : []; } catch (e) { unmatchedMap[ev.id] = unmatchedMap[ev.id] || []; }
+    if (currentEventId === ev.id) renderUnmatchedCard(ev);
+  }
+  const umSub = (it) => [it.email, it.mobile, it.minutes != null ? Math.round(it.minutes) + ' min' : ''].filter(Boolean).join(' \u00b7 ');
+  function renderUnmatchedCard(ev){
+    const box = $('umCard'), items = (ev && unmatchedMap[ev.id]) || [];
+    if (!ev || !items.length) { box.classList.add('hidden'); return; }
+    box.innerHTML = '';
+    const h = document.createElement('h4'); h.textContent = 'Joined but not matched (' + items.length + ')'; box.appendChild(h);
+    const p = document.createElement('p'); p.className = 'visit-sub'; p.style.cssText = 'margin:0 0 6px; text-align:left;'; p.textContent = 'These people were in the attendance file but not matched to anyone who registered (often another name or email). Tap Map to match each with a registered participant.'; box.appendChild(p);
+    items.forEach(it => {
+      const row = document.createElement('div'); row.className = 'um-row'; row.dataset.name = it.name;
+      const who = document.createElement('div'); const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = it.name || it.email || it.mobile; who.appendChild(nm);
+      if (umSub(it)) { const sb = document.createElement('div'); sb.className = 'sub'; sb.textContent = umSub(it); who.appendChild(sb); }
+      const btns = document.createElement('div'); btns.className = 'btns';
+      const map = document.createElement('button'); map.className = 'ghost-btn small um-map'; map.type = 'button'; map.textContent = 'Map'; map.addEventListener('click', () => openMapForFile(ev, it));
+      const skip = document.createElement('button'); skip.className = 'ghost-btn small um-skip'; skip.type = 'button'; skip.textContent = 'Skip';
+      skip.addEventListener('click', async () => { if (!confirm('Skip \u201c' + (it.name || it.email) + '\u201d? They will stop showing here.')) return; try { const d = await apiPost({ action: 'mapAttendance', id: ev.id, logId: it.id, to: 'dismiss' }); if (d.error) throw new Error(d.error); loadUnmatched(ev, true); } catch (e) { toast(e.message || 'Could not skip'); } });
+      btns.append(map, skip); row.append(who, btns); box.appendChild(row);
+    });
+    box.classList.remove('hidden');
+  }
+  function showMap(ctx){
+    mapCtx = ctx; $('mapTitle').textContent = ctx.title; $('mapIntro').textContent = ctx.intro; $('mapSearch').value = ''; $('mapError').style.display = 'none';
+    renderMapList();
+    const ex = $('mapExtra'); ex.innerHTML = '';
+    ctx.extras.forEach(x => { const b = document.createElement('button'); b.className = 'ghost-btn'; b.type = 'button'; b.style.justifyContent = 'center'; b.textContent = x.label; b.addEventListener('click', x.run); ex.appendChild(b); });
+    $('mapOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('mapOverlay').classList.add('open')));
+  }
+  function renderMapList(){
+    const q = $('mapSearch').value.trim().toLowerCase(), box = $('mapList'); box.innerHTML = '';
+    const items = mapCtx.items.filter(it => !q || ((it.name || '') + ' ' + (it.email || '') + ' ' + (it.mobile || '')).toLowerCase().includes(q));
+    items.forEach(it => {
+      const d = document.createElement('div'); d.className = 'map-item'; d.dataset.who = it.name || it.email || it.mobile;
+      const w = document.createElement('div'); const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = it.name || it.email || it.mobile; w.appendChild(nm);
+      const sb = document.createElement('div'); sb.className = 'sub'; sb.textContent = mapCtx.sub(it); if (sb.textContent) w.appendChild(sb);
+      const go = document.createElement('span'); go.textContent = 'Map \u203a'; go.style.cssText = 'color:var(--btn-blue,#2557D6); font-weight:600; font-size:.85rem;';
+      d.append(w, go); d.addEventListener('click', () => mapCtx.pick(it)); box.appendChild(d);
+    });
+    const em = $('mapEmpty'); em.textContent = items.length ? '' : (q ? 'No match for \u201c' + $('mapSearch').value.trim() + '\u201d.' : mapCtx.empty); em.classList.toggle('hidden', !!items.length);
+  }
+  function hideMap(){ $('mapOverlay').classList.remove('open'); setTimeout(() => $('mapOverlay').classList.add('hidden'), 280); }
+  async function mapCall(ev, body, doneText){
+    $('mapError').style.display = 'none';
+    try {
+      const d = await apiPost(Object.assign({ id: ev.id }, body)); if (d.error) throw new Error(d.error);
+      hideMap(); umFetched[ev.id] = 0; loadUnmatched(ev, true); afterLeadsAdded(); if (doneText) toast(doneText);
+    } catch (e) { $('mapError').textContent = e.message || 'Could not save \u2014 nothing was changed.'; $('mapError').style.display = 'block'; }
+  }
+  const regTo = (a) => ({ email: a.email || '', mobile: a.mobile || '', name: a.name || '' });
+  /** From a person who joined: pick the registered participant they are (anyone not yet marked as attended). */
+  function openMapForFile(ev, it){
+    const cached = loadAtt(ev.id), regs = (cached ? cached.attendees : []).filter(a => a.att !== 'Y').slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    showMap({
+      title: 'Match \u201c' + (it.name || it.email || it.mobile) + '\u201d', intro: (umSub(it) ? 'Joined with ' + umSub(it) + '. ' : '') + 'Tap the registered participant this is.',
+      items: regs, sub: (a) => [a.email, a.mobile, a.att === 'N' ? 'marked did not attend' : ''].filter(Boolean).join(' \u00b7 '), empty: 'Everyone registered is already marked as attended.',
+      pick: (a) => { if (confirm('Mark \u201c' + a.name + '\u201d as attended \u2014 they joined as \u201c' + (it.name || it.email) + '\u201d?')) mapCall(ev, { action: 'mapAttendance', logId: it.id, to: regTo(a) }, '\u201c' + a.name + '\u201d marked as attended'); },
+      extras: [{ label: 'Not registered \u2014 add as a new lead (attended)', run: () => mapCall(ev, { action: 'mapAttendance', logId: it.id, to: 'new' }, 'Added as a lead, marked attended') },
+               { label: 'Skip \u2014 not a lead', run: () => { if (confirm('Skip \u201c' + (it.name || it.email) + '\u201d? They will stop showing in the list.')) mapCall(ev, { action: 'mapAttendance', logId: it.id, to: 'dismiss' }, 'Skipped'); } }]
+    });
+  }
+  /** From a registered person: did they join under another name? Pick that attendee — or just flip Yes / No. */
+  function openMapForRegistrant(ev, a){
+    const items = (unmatchedMap[ev.id] || []).slice();
+    const attended = a.att === 'Y';
+    showMap({
+      title: attended ? '\u201c' + a.name + '\u201d \u2014 attended' : 'Did \u201c' + a.name + '\u201d join as someone else?',
+      intro: attended ? 'Marked as attended. If that is a mistake you can change it below.' : 'Pick the person from the attendance file who is really ' + a.name + ', or mark them as attended without matching.',
+      items: attended ? [] : items, sub: umSub, empty: attended ? '' : 'Nobody is waiting in the attendance file.',
+      pick: (it) => { if (confirm('Mark \u201c' + a.name + '\u201d as attended \u2014 they joined as \u201c' + (it.name || it.email) + '\u201d?')) mapCall(ev, { action: 'mapAttendance', logId: it.id, to: regTo(a) }, '\u201c' + a.name + '\u201d marked as attended'); },
+      extras: attended ? [{ label: 'Mark as did not attend', run: () => mapCall(ev, { action: 'setAttendance', to: regTo(a), value: 'No' }, '\u201c' + a.name + '\u201d marked as did not attend') }]
+                       : [{ label: 'Mark as attended (no match needed)', run: () => mapCall(ev, { action: 'setAttendance', to: regTo(a), value: 'Yes' }, '\u201c' + a.name + '\u201d marked as attended') }]
+    });
+  }
+  $('closeMapBtn').addEventListener('click', hideMap);
+  $('mapOverlay').addEventListener('click', (e) => { if (e.target === $('mapOverlay')) hideMap(); });
+  $('mapSearch').addEventListener('input', () => { if (mapCtx) renderMapList(); });
 
   // ── Message a group (attended / didn't attend) ──────────────────────────────────────
   const GRP_KEY = { Y: 'attended', N: 'absent', U: 'unrecorded', all: 'all' };
@@ -2340,7 +2460,7 @@
   // The pop-up. It opens by itself when a reminder is newly due (at launch, after a sync, or when 8:00 arrives while
   // the app is open); "Later" closes it and the green banner stays on the list until everyone is reminded.
   const popupShown = new Set();
-  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden') || !$('noticeOverlay').classList.contains('hidden') || !$('linksOverlay').classList.contains('hidden') || !$('leadOverlay').classList.contains('hidden') || !$('uploadOverlay').classList.contains('hidden') || !$('attOverlay').classList.contains('hidden') || !$('grpOverlay').classList.contains('hidden'); }
+  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden') || !$('noticeOverlay').classList.contains('hidden') || !$('linksOverlay').classList.contains('hidden') || !$('leadOverlay').classList.contains('hidden') || !$('uploadOverlay').classList.contains('hidden') || !$('attOverlay').classList.contains('hidden') || !$('grpOverlay').classList.contains('hidden') || !$('mapOverlay').classList.contains('hidden'); }
   function renderRemindPopup(due){
     const box = $('remindList'); box.innerHTML = '';
     due.forEach(d => {
@@ -2556,6 +2676,11 @@
       mailBtn.addEventListener('click', () => { mailBtn.href = mailTo(followKind(a, ev)); markReminded(ev, activeStage(ev) || followKind(a, ev), a, row); });   // decided at the tap, like the WhatsApp icon
       actions.appendChild(mailBtn);
     }
+    if (ev.attended || ev.absent) {      // attendance is recorded: tap to match this person with someone who joined under another name, or to fix Yes/No
+      const mapBtn = actionLink('map', '#', 'Match ' + (a.name || '') + ' with an attendee', false);
+      mapBtn.addEventListener('click', (e) => { e.preventDefault(); openMapForRegistrant(ev, a); });
+      actions.appendChild(mapBtn);
+    }
     if (followKind(a, ev) === 'thx' && imgInfo[ev.id]) {      // an attendee, after the webinar, and a picture is uploaded: send picture + message together
       const picBtn = actionLink('pic', '#', 'Send the picture and message to ' + (a.name || ''), false);
       picBtn.addEventListener('click', (e) => { e.preventDefault(); sendPicture(a, ev, row); });
@@ -2683,6 +2808,7 @@
     renderVisitCard(ev);
     renderPdfCard(ev);
     renderPicCard(ev);
+    renderUnmatchedCard(ev); loadUnmatched(ev);
     $('dDescription').textContent = ev.description || '';
     $('dDescription').style.display = ev.description ? 'block' : 'none';
     renderAttendees();
