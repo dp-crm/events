@@ -320,6 +320,25 @@
   .up-tbl{ width:100%; border-collapse:collapse; font-size:.78rem; margin:6px 0; }
   .up-tbl td, .up-tbl th{ text-align:left; padding:5px 6px; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:110px; }
   .up-issues{ font-size:.8rem; color:var(--ink-soft); margin:6px 0; line-height:1.5; }
+  .seg-row{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; }
+  .seg-chip{ border:1px solid var(--line); border-radius:999px; padding:5px 12px; font-size:.82rem; background:transparent; color:var(--ink); cursor:pointer; font:inherit; font-size:.82rem; }
+  .seg-chip.on{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .tag-att{ font-size:.74rem; border-radius:999px; padding:1px 8px; display:inline-block; margin-top:3px; margin-right:4px; border:1px solid var(--line); color:var(--ink-soft); }
+  .tag-att.yes{ color:#1E7B4A; border-color:#1E7B4A; }
+  .tag-att.no{ color:#B5651D; border-color:#B5651D; }
+  .grp-sum{ font-size:.84rem; color:var(--ink-soft); margin:6px 0 10px; line-height:1.5; }
+  textarea.field.tall{ min-height:190px; }
+  .att-row.stack{ flex-direction:column; align-items:stretch; gap:5px; padding:8px 10px; border:1px solid var(--line); border-radius:12px; }
+  .att-row.need{ border-color:#C0392B; }
+  .att-row .pair{ font-size:.82rem; line-height:1.5; }
+  .att-row .pair b{ font-weight:600; color:var(--ink-soft); }
+  .att-row.stack select{ max-width:100%; width:100%; }
+  .att-review{ margin:10px 0 4px; }
+  .att-review h5{ margin:0 0 4px; font-size:.78rem; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); font-weight:600; }
+  .att-row{ display:flex; gap:8px; align-items:center; margin:7px 0; font-size:.82rem; }
+  .att-row .nm{ flex:1; min-width:0; overflow-wrap:anywhere; }
+  .att-row select{ max-width:54%; font-size:.82rem; }
+  .att-row input[type=checkbox]{ width:18px; height:18px; flex:none; }
   .show-more{ width:100%; justify-content:center; margin:12px 0 4px; padding:11px; }
   .version-note{ text-align:center; color:var(--ink-soft); font-size:.72rem; opacity:.7; padding:26px 0 90px; }
   .load-error{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px 20px; text-align:center; }
@@ -443,6 +462,10 @@
       <button class="ghost-btn" id="addLeadBtn" type="button">+ Add lead</button>
       <button class="ghost-btn" id="uploadLeadsBtn" type="button">Upload leads</button>
     </div>
+    <div class="lead-actions">
+      <button class="ghost-btn" id="uploadAttBtn" type="button">Upload attendance</button>
+      <button class="ghost-btn" id="msgGroupBtn" type="button">Message a group</button>
+    </div>
     <div id="visitCard" class="visit-card hidden"></div>
     <div id="remindStrip" class="banner remind-banner hidden" role="status" style="cursor:default;"></div>
     <div class="attendees-head">
@@ -453,6 +476,7 @@
         Export
       </button>
     </div>
+    <div class="seg-row hidden" id="attSegs"></div>
     <input class="field search-field hidden" id="attendeeSearch" type="search" placeholder="Search name, email or number" autocomplete="off" aria-label="Search participants">
     <div id="attendeeList"></div>
   </div>
@@ -553,6 +577,62 @@
     <p class="form-error" id="upError" style="display:none;"></p>
     <button class="primary-btn hidden" id="upGo" style="margin-top:14px;">Add leads</button>
     <p class="muted-note" id="upProgress" style="display:none; margin-top:10px; text-align:center;"></p>
+  </div>
+</div>
+
+<!-- Upload who attended -->
+<div id="attOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3>Upload attendance</h3>
+      <button id="closeAttBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted-note" id="attIntro" style="margin-bottom:6px;"></p>
+    <label class="form-label" for="attFile">Attendance file <span class="muted">(CSV or Excel, from Google Meet or Zoom)</span></label>
+    <input class="field" id="attFile" type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+    <div id="attMap" class="hidden" style="margin-top:12px;">
+      <div class="section-label" style="margin:0 0 6px;">Which column is which?</div>
+      <div class="up-grid">
+        <div><label for="attMapName">Name (or first name)</label><select class="field" id="attMapName"></select></div>
+        <div><label for="attMapLast">Last name</label><select class="field" id="attMapLast"></select></div>
+        <div><label for="attMapEmail">Email</label><select class="field" id="attMapEmail"></select></div>
+        <div><label for="attMapMobile">Mobile</label><select class="field" id="attMapMobile"></select></div>
+        <div><label for="attMapDur">Time they stayed</label><select class="field" id="attMapDur"></select></div>
+        <div><label for="attMin">Count only if at least (minutes)</label><input class="field" id="attMin" type="number" inputmode="numeric" min="0" value="0"></div>
+      </div>
+    </div>
+    <div id="attPreview" class="hidden"></div>
+    <p class="form-error" id="attError" style="display:none;"></p>
+    <button class="primary-btn hidden" id="attGo" style="margin-top:14px;">Mark attendance</button>
+    <p class="muted-note" id="attProgress" style="display:none; margin-top:10px; text-align:center; line-height:1.5;"></p>
+  </div>
+</div>
+
+<!-- Message the people who attended / didn't attend -->
+<div id="grpOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3>Message a group</h3>
+      <button id="closeGrpBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted-note" id="grpIntro" style="margin-bottom:6px;"></p>
+    <label class="form-label" for="grpWho">Who</label>
+    <select class="field" id="grpWho"></select>
+    <p class="grp-sum" id="grpSum"></p>
+    <div class="section-label" style="margin:0 0 6px;">By WhatsApp</div>
+    <p class="muted-note" style="margin:0 0 8px;">The green icon next to each person opens the right message for them once the webinar has started (a thank-you for those who attended, \u201cSorry we missed you\u201d for those who didn\u2019t). This shows only that group, in order.</p>
+    <button class="ghost-btn" id="grpShowBtn" style="width:100%; justify-content:center;">Show these people</button>
+    <div class="section-label" style="margin:16px 0 6px;">By email</div>
+    <label class="form-label" for="grpSubject">Subject</label>
+    <input class="field" id="grpSubject" maxlength="150" autocomplete="off">
+    <label class="form-label" for="grpMessage">Message</label>
+    <textarea class="field tall" id="grpMessage"></textarea>
+    <p class="muted-note" style="margin:4px 0 0;">{name} {topic} {time} {feedback} are filled in for each person (their own time zone, their own feedback link).</p>
+    <p class="form-error" id="grpError" style="display:none;"></p>
+    <button class="primary-btn" id="grpSendBtn" style="margin-top:14px;">Send email</button>
+    <p class="muted-note" id="grpDone" style="display:none; margin-top:10px; text-align:center;"></p>
   </div>
 </div>
 
@@ -677,7 +757,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '4.1';
+  const APP_VERSION = '4.4';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -922,7 +1002,8 @@
     return (list || []).map(a => ({
       name: String(a.name == null ? '' : a.name), email: String(a.email == null ? '' : a.email),
       country: String(a.country == null ? '' : a.country), mobile: String(a.mobile == null ? '' : a.mobile),
-      ...(a.src ? { src: String(a.src) } : {})
+      ...(a.src ? { src: String(a.src) } : {}),
+      ...(a.att ? { att: String(a.att) } : {})
     }));
   }
   const findEvent = (id) => summary ? summary.events.find(e => e.id === id) : null;
@@ -1353,8 +1434,29 @@
   }
   // The six reminder messages. Each opens with a bold headline ("1 day to go"), then "Dear {name}". Times are in the person's own country.
   // Which one is used is decided when you tap the WhatsApp icon (see attendeeRow); with no stage due it's the general reminder wording.
+  /** Same two links as the reminder emails: Google Calendar (opens an "add event" page) and Apple / Outlook (an .ics file from your Apps Script). */
+  function calLinks(ev){
+    const start = new Date(ev.dateISO), end = new Date(start.getTime() + (Number(ev.durationMinutes) || 60) * 60000);
+    const f = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+    const q = { action: 'TEMPLATE', text: ev.topic, dates: f(start) + '/' + f(end), details: 'Webinar conducted by ' + ev.conductedBy + ', ' + (typeof FIRM_NAME === 'string' ? FIRM_NAME : '') + '.' + (ev.meetingLink ? '\n\nJoin: ' + ev.meetingLink : '') };
+    return { google: 'https://calendar.google.com/calendar/render?' + Object.keys(q).map(k => k + '=' + encodeURIComponent(q[k])).join('&'), ics: WEB_APP_URL + '?action=ics&id=' + encodeURIComponent(ev.id) };
+  }
   function durationWord(m){ m = Number(m) || 60; return m < 60 ? m + '-minute' : (m % 60 === 0 ? m / 60 : (m / 60).toFixed(1).replace(/\.0$/, '')) + '-hour'; }
+  const FOLLOW_LABEL = { thx: 'Thank-you', miss: '\u201cSorry we missed you\u201d' };
+  const stageLabel = (key) => STAGE_HEAD(key) || FOLLOW_LABEL[key] || '';
+  /** After the webinar has started: a thank-you for someone recorded as attended, "sorry we missed you" for someone who wasn't. */
+  function followKind(a, ev){
+    if (!a.att || activeStage(ev) || Date.now() < new Date(ev.dateISO).getTime()) return null;
+    return a.att === 'Y' ? 'thx' : 'miss';
+  }
+  function followDraft(a, ev, kind){
+    const head = 'Dear ' + (a.name || 'Participant') + ',\n\n', topic = '*' + String(ev.topic).replace(/\*/g, '') + '*', sign = '\n\nRegards\n' + ORGANISER_NAME;
+    return kind === 'thx'
+      ? head + 'Thank you for joining the webinar on ' + topic + '. We hope it was useful.\n\nIf you would like to discuss how this applies to your own plans, just reply here and we will arrange a convenient time.' + sign
+      : head + 'We missed you at the webinar on ' + topic + '. We hope everything is well.\n\nIf you would still like the key points, just reply here and we will share them with you \u2014 and we are happy to arrange a short call if that suits you.' + sign;
+  }
   function reminderDraft(a, ev, stage){
+    if (stage === 'thx' || stage === 'miss') return followDraft(a, ev, stage);
     const name = a.name || 'Participant';
     if (!stage) {
       return 'Dear ' + name + '\n\n' +
@@ -1366,11 +1468,12 @@
     const topic = '*' + String(ev.topic).replace(/\*/g, '') + '*', link = ev.meetingLink || '', sign = 'Regards\n' + ORGANISER_NAME;
     const top = '*' + STAGE_HEAD(stage) + '*\n\nDear ' + name + ',\n\n';
     const withLink = (label) => link ? label + link + '\n\n' : '';
+    const calBlock = (() => { const c = calLinks(ev); return 'Add to calendar:\nGoogle: ' + c.google + '\nApple / Outlook: ' + c.ics + '\n\n'; })();      // only used by the 7-day, 3-day and 1-day messages
     let body;
     switch (stage) {
-      case '7d': body = 'Please save the date. Our webinar on ' + topic + ' is on ' + full + '. It is a ' + durationWord(ev.durationMinutes) + ' session, and we will keep time for your questions at the end.\n\n' + withLink('Joining link: ') + sign; break;
-      case '3d': body = 'A gentle reminder that the webinar on ' + topic + ' is on ' + full + '. If there is a question you would like us to cover, just reply here.\n\n' + withLink('Joining link: ') + sign; break;
-      case '1d': body = 'The webinar on ' + topic + ' is on ' + full + '.' + (link ? ' Please keep this link handy:\n' + link : '') + '\n\nWe will see you there.\n' + ORGANISER_NAME; break;
+      case '7d': body = 'Please save the date. Our webinar on ' + topic + ' is on ' + full + '. It is a ' + durationWord(ev.durationMinutes) + ' session, and we will keep time for your questions at the end.\n\n' + withLink('Joining link: ') + calBlock + sign; break;
+      case '3d': body = 'A gentle reminder that the webinar on ' + topic + ' is on ' + full + '. If there is a question you would like us to cover, just reply here.\n\n' + withLink('Joining link: ') + calBlock + sign; break;
+      case '1d': body = 'The webinar on ' + topic + ' is on ' + full + '.' + (link ? ' Please keep this link handy:\n' + link : '') + '\n\n' + calBlock + 'We will see you there.\n' + ORGANISER_NAME; break;
       case '5h': body = 'The webinar on ' + topic + ' starts at ' + clock + '.\n\n' + withLink('Joining link: ') + 'We will see you there.'; break;
       case '2h': body = 'The webinar on ' + topic + ' starts at ' + clock + '. Please join a few minutes early.\n\n' + withLink('Link: '); break;
       default:   body = 'We start in 30 minutes.' + (link ? ' Join here:\n' + link : '') + '\n\n' + topic + ' \u00b7 ' + clock; break;
@@ -1626,13 +1729,279 @@
     if (!cached) return;
     try {
       await loadSheetJS();
-      const rows = [['Name', 'Email', 'Mobile', 'Country', 'Source']].concat(cached.attendees.map(a => [a.name, a.email, a.mobile, a.country, a.src ? 'Offline lead' : 'Registration link']));
+      const rows = [['Name', 'Email', 'Mobile', 'Country', 'Source', 'Attendance']].concat(cached.attendees.map(a => [a.name, a.email, a.mobile, a.country, a.src ? 'Offline lead' : 'Registration link', a.att === 'Y' ? 'Attended' : a.att === 'N' ? 'Did not attend' : '']));
       const wb = window.XLSX.utils.book_new(); window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(rows), 'Participants');
       const out = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
       a.download = ev.topic.replace(/[^\w\- ]+/g, '').trim().slice(0, 60) + ' - participants.xlsx';
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     } catch (e) { toast(e.message || 'Could not make the Excel file'); }
+  });
+
+  // ── Upload who attended ──────────────────────────────────────────────────────────────
+  // Take the attendance list from Google Meet / Zoom (CSV or Excel). Everyone registered for the webinar is then marked Yes / No in the
+  // sheet. Matching is by email, then mobile number, then full name (only if that name is unique). The server repeats the matching.
+  const ATT_PATTERNS = {
+    Name: /^(full[\s_]*name|name|display[\s_]*name|participant(\s*name)?|attendee(\s*name)?|user[\s_]*name|name\s*\(original name\)|first[\s_]*name)$/i,
+    Last: /^(last[\s_]*name|surname)$/i, Email: /e-?mail/i, Mobile: /mobile|phone|whatsapp/i, Dur: /duration|time\s*in\s*call|minutes|\bmins\b|time\s*attended/i
+  };
+  const ATT_FIELDS = ['Name', 'Last', 'Email', 'Mobile', 'Dur'];
+  let attRows = [], attHeaderAt = 0, attEvId = null;
+  const attMapOf = (row) => { const m = {}; row.forEach((h, i) => ATT_FIELDS.forEach(f => { if (m[f] === undefined && ATT_PATTERNS[f].test(String(h).trim())) m[f] = i; })); return m; };
+  function attFindHeader(rows){      // Zoom puts meeting details above the real table, so look for the heading row
+    for (let i = 0; i < Math.min(rows.length, 15); i++) { const m = attMapOf(rows[i]); if (Object.keys(m).length >= 2 && (m.Name !== undefined || m.Email !== undefined)) return { at: i, map: m, header: true }; }
+    const m = attMapOf(rows[0] || []);
+    return Object.keys(m).length ? { at: 0, map: m, header: true } : { at: -1, map: { Name: 0, Email: 1 }, header: false };
+  }
+  function parseMinutes(v){
+    const s = String(v == null ? '' : v).trim().toLowerCase(); if (!s) return null;
+    let m = /^(\d+):(\d{2})(?::(\d{2}))?$/.exec(s); if (m) return Number(m[1]) * 60 + Number(m[2]) + (m[3] ? Number(m[3]) / 60 : 0);        // 1:05:30
+    const h = /(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/.exec(s), mi = /(\d+(?:\.\d+)?)\s*(?:m|min|mins|minute|minutes)\b/.exec(s), se = /(\d+)\s*(?:s|sec|secs)\b/.exec(s);
+    if (h || mi || se) return (h ? parseFloat(h[1]) * 60 : 0) + (mi ? parseFloat(mi[1]) : 0) + (se ? parseInt(se[1], 10) / 60 : 0);            // 1 hr 5 min
+    return /^\d+(\.\d+)?$/.test(s) ? parseFloat(s) : null;                                                                                    // 65 (minutes)
+  }
+  const normName = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  const attPick = (row, f) => { const v = $('attMap' + f).value; return v === '' ? '' : String(row[Number(v)] == null ? '' : row[Number(v)]).trim(); };
+  function attPeople(){      // one entry per person: someone who rejoined appears on several rows — add their minutes together
+    const data = attRows.slice(attHeaderAt + 1), by = {}, order = [];
+    data.forEach(row => {
+      const name = [attPick(row, 'Name'), attPick(row, 'Last')].filter(Boolean).join(' '), email = attPick(row, 'Email'), mobile = attPick(row, 'Mobile');
+      if (!name && !email && !mobile) return;
+      const key = email.toLowerCase() || mobile.replace(/\D/g, '') || normName(name), mins = parseMinutes(attPick(row, 'Dur'));
+      const p = by[key] || (by[key] = { name: name, email: email, mobile: mobile, minutes: null }, order.push(key), by[key]);
+      if (!p.name && name) p.name = name; if (!p.email && email) p.email = email; if (!p.mobile && mobile) p.mobile = mobile;
+      if (mins !== null) p.minutes = (p.minutes || 0) + mins;
+    });
+    return order.map(k => by[k]);
+  }
+  const HONORIFICS = new Set(['mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'shri', 'smt', 'sri', 'sir']);
+  const nameTokens = (s) => normName(s).split(' ').filter(t => t && !HONORIFICS.has(t));
+  const attKeyOf = (p) => p.email.toLowerCase() || p.mobile.replace(/\D/g, '') || normName(p.name);
+  const regLabel = (r) => (r.name || '(no name)') + (r.email ? ' \u00b7 ' + r.email : r.mobile ? ' \u00b7 ' + r.mobile : '');
+  const ATT_SKIP_KEY = 'wm_att_skip_v1';          // names you chose to skip (the host's account, say) — skipped by default next time
+  const attSkipped = () => { try { return JSON.parse(lsGet(ATT_SKIP_KEY) || '[]'); } catch (e) { return []; } };
+  function rememberSkip(name, on){ const k = normName(name); if (!k) return; const a = attSkipped().filter(x => x !== k); if (on) a.push(k); lsSet(ATT_SKIP_KEY, JSON.stringify(a.slice(-100))); }
+  let attFix = {}, attPayload = [], attNew = [];  // attFix[person].v: '' not decided · 'new' add as a new lead · 'skip' · or the number of the registrant you picked
+  function lev(a, b){
+    const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+    let prev = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+    return prev[n];
+  }
+  /** One word against another: 1 same · 0.9 an initial ("K" ~ "Kumar") · 0.8 a small typo ("Tomas" ~ "Thomas") · 0 different. */
+  function wordSim(a, b){
+    if (a === b) return 1;
+    if (a.length === 1 || b.length === 1) return a[0] === b[0] ? 0.9 : 0;
+    const longest = Math.max(a.length, b.length), lim = longest >= 8 ? 2 : longest >= 5 ? 1 : 0;
+    return lev(a, b) <= lim ? 0.8 : 0;
+  }
+  /** Two names (lists of words) → 0..1, 0 = no match. Words in any order; the shorter name's words must each find a partner in the longer. */
+  function nameScore(pt, rt){
+    if (!pt.length || !rt.length) return 0;
+    const sh = pt.length <= rt.length ? pt : rt, lg = pt.length <= rt.length ? rt : pt, used = new Set(); let sum = 0;
+    for (const t of sh) { let best = 0, bi = -1; lg.forEach((u, i) => { if (used.has(i)) return; const v = wordSim(t, u); if (v > best) { best = v; bi = i; } }); if (!best) return 0; used.add(bi); sum += best; }
+    const base = sum / sh.length;
+    if (sh.length === 1) return lg[0] && wordSim(sh[0], lg[0]) ? base * 0.55 : 0;           // a single first name: only a weak hint
+    return base * (0.7 + 0.3 * (sh.length / lg.length));
+  }
+  /**
+   * For each person in the file → { kind: 'exact' | 'cand' | 'none' }.
+   *   exact = same email, same mobile number, or same full name (only if that name is unique among the registrants): used without asking.
+   *   cand  = no exact match, but one or more registrants look like the same person (listed best first, with a score): you confirm.
+   *   none  = nobody looks like them: a new attendee.
+   */
+  function attMatch(present, regs){
+    const add = (m, k, i) => { if (k) (m[k] = m[k] || []).push(i); };
+    const byEmail = {}, byDig = {}, byTail = {}, byName = {};
+    regs.forEach((r, i) => { add(byEmail, String(r.email || '').toLowerCase(), i); const d = String(r.mobile || '').replace(/\D/g, ''); if (d.length >= 7) { add(byDig, d, i); if (d.length >= 9) add(byTail, d.slice(-9), i); } add(byName, normName(r.name), i); });
+    const regTokens = regs.map(r => nameTokens(r.name));
+    return present.map(p => {
+      const em = p.email.toLowerCase(), dg = p.mobile.replace(/\D/g, ''), nm = normName(p.name); let hit = null;
+      if (em && byEmail[em]) hit = byEmail[em]; else if (dg.length >= 7 && byDig[dg]) hit = byDig[dg]; else if (dg.length >= 9 && byTail[dg.slice(-9)]) hit = byTail[dg.slice(-9)]; else if (nm && byName[nm] && byName[nm].length === 1) hit = byName[nm];
+      if (hit) return { kind: 'exact', regs: hit };
+      const pt = nameTokens(p.name), cands = [];
+      regTokens.forEach((rt, i) => { const sc = nameScore(pt, rt); if (sc >= 0.5) cands.push({ i: i, s: sc }); });
+      cands.sort((a, b) => b.s - a.s);
+      return cands.length ? { kind: 'cand', cands: cands.slice(0, 4) } : { kind: 'none' };
+    });
+  }
+  /** What a row shows before you touch it: a clear single best candidate is pre-selected (still shown, still changeable); a doubtful one waits for you. */
+  // (thresholds sit a hair under 0.9 and 0.1 so floating-point rounding can't flip a clear match)
+  function attDefault(p, r){
+    if (r.kind === 'cand') { const c = r.cands; return c[0].s >= 0.899 && (c.length === 1 || c[0].s - c[1].s >= 0.099) ? String(c[0].i) : ''; }
+    return attSkipped().includes(normName(p.name)) ? 'skip' : 'new';
+  }
+  function attPreview(){
+    const ev = findEvent(attEvId), cached = ev && loadAtt(ev.id), box = $('attPreview'); box.innerHTML = '';
+    if (!cached) { box.textContent = 'The participant list is still loading \u2014 close this and try again in a moment.'; box.classList.remove('hidden'); $('attGo').classList.add('hidden'); return; }
+    const regs = cached.attendees;
+    const hasDur = $('attMapDur').value !== '', min = hasDur ? Math.max(0, Number($('attMin').value) || 0) : 0;
+    const all = attPeople(), present = all.filter(p => !min || p.minutes === null || p.minutes >= min), short = all.length - present.length;
+    const res = attMatch(present, regs), marked = new Set(), vals = [];
+    present.forEach((p, i) => {
+      const r = res[i], fix = attFix[attKeyOf(p)] || {};
+      const v = r.kind === 'exact' ? '' : (fix.v !== undefined ? fix.v : attDefault(p, r));
+      vals.push(v);
+      if (r.kind === 'exact') r.regs.forEach(x => marked.add(x)); else if (v !== '' && v !== 'new' && v !== 'skip') marked.add(Number(v));
+    });
+    attPayload = []; attNew = []; let need = 0;
+    present.forEach((p, i) => {
+      const r = res[i], v = vals[i];
+      if (r.kind === 'exact') attPayload.push({ name: p.name, email: p.email, mobile: p.mobile });
+      else if (v === 'new') attNew.push({ name: p.name, email: p.email, mobile: p.mobile, source: 'Attended webinar (not registered)', notes: 'Attended' + (p.minutes != null ? ' ' + Math.round(p.minutes) + ' min' : '') + ' \u2014 not registered' });
+      else if (v === '') need++;
+      else if (v !== 'skip') attPayload.push({ name: p.name, email: regs[Number(v)].email || '', mobile: regs[Number(v)].mobile || '' });   // sent as the registrant you confirmed, so the server marks exactly that person
+    });
+    const sum = document.createElement('div'); sum.className = 'up-sum';
+    [[present.length, 'in the file'], [marked.size, 'registered \u2192 Yes'], [regs.length - marked.size, 'registered \u2192 No']].forEach(([v, l]) => { const d = document.createElement('div'); d.innerHTML = '<div class="v"></div><div class="l"></div>'; d.firstChild.textContent = v; d.lastChild.textContent = l; sum.appendChild(d); });
+    box.appendChild(sum);
+    const notes = [];
+    if (short) notes.push(short + (short === 1 ? ' person' : ' people') + ' stayed less than ' + min + ' minutes and will be marked No.');
+    if (attNew.length) notes.push(attNew.length + ' new attendee' + (attNew.length === 1 ? '' : 's') + ' (not registered) will be added to this webinar as leads, marked Yes.');
+    if (notes.length) { const p = document.createElement('p'); p.className = 'up-issues'; p.textContent = notes.join('  '); box.appendChild(p); }
+    const rows = present.map((p, i) => ({ p: p, r: res[i], k: attKeyOf(p), v: vals[i] })).filter(x => x.r.kind !== 'exact');
+    if (rows.length) {
+      const wrap = document.createElement('div'); wrap.className = 'att-review';
+      const h = document.createElement('h5'); h.textContent = 'Check ' + rows.length + (rows.length === 1 ? ' name' : ' names'); wrap.appendChild(h);
+      const hint = document.createElement('p'); hint.className = 'up-issues'; hint.textContent = 'Meet shows the name each person typed, which can differ from the name on the registration form. Names that match exactly are done already. For these, confirm who is who. Anyone not registered is added as a new lead (marked attended) \u2014 choose \u201cSkip\u201d for yourself or the host.';
+      wrap.appendChild(hint);
+      rows.slice(0, 80).forEach(({ p, r, k, v }) => {
+        const fix = attFix[k] || (attFix[k] = {}), row = document.createElement('div'); row.className = 'att-row stack' + (v === '' ? ' need' : '');
+        row.dataset.who = p.name || p.email || p.mobile;
+        const pair = document.createElement('div'); pair.className = 'pair';
+        const b1 = document.createElement('b'); b1.textContent = 'Attendance: '; pair.append(b1, document.createTextNode(p.name || p.email || p.mobile), document.createElement('br'));
+        const b2 = document.createElement('b'); b2.textContent = 'Registration form: ';
+        pair.append(b2, document.createTextNode(r.kind === 'cand' ? (r.cands.length === 1 ? (regs[r.cands[0].i].name || '(no name)') : 'one of ' + r.cands.length + ' similar names') : 'no similar name'));
+        const sel = document.createElement('select'); sel.className = 'field';
+        const opt = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; sel.appendChild(o); };
+        if (r.kind === 'cand') {
+          opt('', '\u2014 confirm: who is this? \u2014');
+          r.cands.forEach(c => opt(String(c.i), 'Same person as: ' + regLabel(regs[c.i])));
+          opt('new', 'Different person \u2014 add as a new lead (attended)'); opt('skip', 'Skip \u2014 I / the host / not a lead');
+        } else {
+          opt('new', 'Add as a new lead (attended)'); opt('skip', 'Skip \u2014 I / the host / not a lead (remember)');
+          regs.forEach((reg, i) => { if (!marked.has(i) || String(v) === String(i)) opt(String(i), 'Same person as: ' + regLabel(reg)); });
+        }
+        sel.value = v; sel.addEventListener('change', () => { fix.v = sel.value; rememberSkip(p.name, sel.value === 'skip'); attPreview(); });
+        row.append(pair, sel); wrap.appendChild(row);
+      });
+      if (rows.length > 80) { const more = document.createElement('p'); more.className = 'up-issues'; more.textContent = '\u2026and ' + (rows.length - 80) + ' more not shown \u2014 split the file.'; wrap.appendChild(more); }
+      box.appendChild(wrap);
+    }
+    box.classList.remove('hidden');
+    const nothing = !attPayload.length && !attNew.length;
+    $('attGo').classList.toggle('hidden', nothing); $('attGo').disabled = need > 0; $('attGo').textContent = need > 0 ? 'Confirm ' + need + (need === 1 ? ' name' : ' names') + ' above first' : 'Mark attendance';
+    if (!present.length) { $('attError').textContent = 'Nobody in this file meets the minimum time \u2014 nothing to mark.'; $('attError').style.display = 'block'; }
+    else if (nothing && !need) { $('attError').textContent = 'Everyone was skipped \u2014 nothing to mark.'; $('attError').style.display = 'block'; }
+    else $('attError').style.display = 'none';
+  }
+  function buildAttMapping(h){
+    const head = attRows[Math.max(0, h.at)] || [];
+    const cols = h.header ? head : (attRows[0] || []);
+    const labels = { Name: 'Name', Last: 'Last name', Email: 'Email', Mobile: 'Mobile', Dur: 'Time they stayed' };
+    ATT_FIELDS.forEach(f => {
+      const sel = $('attMap' + f); sel.innerHTML = '';
+      const none = document.createElement('option'); none.value = ''; none.textContent = '\u2014 none \u2014'; sel.appendChild(none);
+      cols.forEach((c, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = String.fromCharCode(65 + (i % 26)) + (h.header ? ': ' + String(c).slice(0, 26) : ''); sel.appendChild(o); });
+      sel.value = h.map[f] !== undefined ? String(h.map[f]) : '';
+    });
+    $('attMap').classList.remove('hidden');
+  }
+  function openAtt(evId){
+    const ev = findEvent(evId); if (!ev) return;
+    attEvId = evId; attRows = []; attFix = {}; attPayload = []; attNew = [];
+    $('attIntro').textContent = '\u201c' + ev.topic + '\u201d. Upload the list of people who actually joined (from Google Meet or Zoom, as CSV or Excel). Everyone registered is then marked Yes or No in your sheet \u2014 uploading again replaces the earlier result.';
+    $('attFile').value = ''; $('attMin').value = '0';
+    ['attMap', 'attPreview', 'attGo'].forEach(id => $(id).classList.add('hidden')); $('attError').style.display = 'none'; $('attProgress').style.display = 'none';
+    $('attOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('attOverlay').classList.add('open')));
+  }
+  function hideAtt(){ $('attOverlay').classList.remove('open'); setTimeout(() => $('attOverlay').classList.add('hidden'), 280); }
+  $('closeAttBtn').addEventListener('click', hideAtt);
+  $('attOverlay').addEventListener('click', (e) => { if (e.target === $('attOverlay')) hideAtt(); });
+  $('uploadAttBtn').addEventListener('click', () => openAtt(currentEventId));
+  ATT_FIELDS.forEach(f => $('attMap' + f).addEventListener('change', attPreview));
+  $('attMin').addEventListener('input', attPreview);
+  $('attFile').addEventListener('change', async () => {
+    const f = $('attFile').files[0]; if (!f) return;
+    const err = (m) => { $('attError').textContent = m; $('attError').style.display = 'block'; };
+    $('attError').style.display = 'none'; $('attProgress').textContent = 'Reading ' + f.name + '\u2026'; $('attProgress').style.display = 'block';
+    try {
+      attRows = await readSheetFile(f); $('attProgress').style.display = 'none';
+      if (attRows.length < 2) return err('That file has no attendees in it.');
+      if (attRows.length > 6000) return err('That file has more than 6,000 rows \u2014 please split it.');
+      const h = attFindHeader(attRows); attHeaderAt = h.at; buildAttMapping(h); attPreview();
+    } catch (e) { $('attProgress').style.display = 'none'; err(e.message || 'Could not read that file.'); }
+  });
+  $('attGo').addEventListener('click', async () => {
+    const err = (m) => { $('attError').textContent = m; $('attError').style.display = 'block'; };
+    $('attError').style.display = 'none'; $('attGo').disabled = true; $('attProgress').textContent = 'Saving\u2026'; $('attProgress').style.display = 'block';
+    try {
+      const d = await apiPost({ action: 'markAttendance', id: attEvId, attended: attPayload, newLeads: attNew });
+      if (d.error) throw new Error(d.error);
+      $('attProgress').textContent = '\u2713 Marked: ' + d.yes + ' attended, ' + d.no + ' didn\u2019t' + (d.leadsAdded ? '. ' + d.leadsAdded + ' new attendee' + (d.leadsAdded === 1 ? '' : 's') + ' added as leads (attended).' : '.');
+      ['attMap', 'attPreview', 'attGo'].forEach(id => $(id).classList.add('hidden')); $('attFile').value = ''; attRows = [];
+      afterLeadsAdded();
+    } catch (e) { $('attProgress').style.display = 'none'; err(e.message || 'Something went wrong \u2014 nothing was changed.'); }
+    finally { $('attGo').disabled = false; }
+  });
+
+  // ── Message a group (attended / didn't attend) ──────────────────────────────────────
+  const GRP_KEY = { Y: 'attended', N: 'absent', U: 'unrecorded', all: 'all' };
+  function grpDefaults(k){
+    const sign = '\n\nRegards\n' + ORGANISER_NAME;
+    if (k === 'Y') return { subject: 'Thank you for attending: {topic}', message: 'Dear {name},\n\nThank you for joining the webinar on {topic}. We hope it was useful.\n\nIf you would like to discuss how this applies to your own plans, just reply to this email and we will arrange a convenient time.' + sign };
+    if (k === 'N') return { subject: 'Sorry we missed you: {topic}', message: 'Dear {name},\n\nWe missed you at the webinar on {topic}. We hope everything is well.\n\nIf you would still like the key points, just reply to this email and we will share them with you \u2014 and we are happy to arrange a short call if that suits you.' + sign };
+    return { subject: '{topic}', message: 'Dear {name},\n\n' + sign };
+  }
+  let grpEvId = null, grpDirty = false;
+  const grpMembers = (list, k) => list.filter(a => k === 'all' || (k === 'Y' && a.att === 'Y') || (k === 'N' && a.att === 'N') || (k === 'U' && !a.att));
+  function grpRefresh(fill){
+    const ev = findEvent(grpEvId), cached = ev && loadAtt(ev.id); if (!cached) return;
+    const k = $('grpWho').value, mem = grpMembers(cached.attendees, k);
+    if (fill && !grpDirty) { const d = grpDefaults(k); $('grpSubject').value = d.subject; $('grpMessage').value = d.message; }
+    const seen = new Set(); let noMail = 0, noOpt = 0, ok = 0;
+    mem.forEach(a => { const em = String(a.email || '').toLowerCase(); if (!EMAIL_RE.test(em)) { noMail++; return; } if (a.src === 'offline') { noOpt++; return; } if (!seen.has(em)) { seen.add(em); ok++; } });
+    $('grpSum').textContent = mem.length + (mem.length === 1 ? ' person' : ' people') + ' in this group \u00b7 ' + ok + ' can be emailed' + (noMail ? ' \u00b7 ' + noMail + ' have no email address' : '') + (noOpt ? ' \u00b7 ' + noOpt + ' offline lead' + (noOpt === 1 ? '' : 's') + ' not switched on for emails (skipped)' : '') + '.';
+    $('grpSendBtn').disabled = ok === 0; $('grpShowBtn').disabled = mem.length === 0 || k === 'all';
+  }
+  function openGrp(evId){
+    const ev = findEvent(evId), cached = ev && loadAtt(ev.id);
+    if (!ev || !cached) { toast('The participant list is still loading \u2014 try again in a moment'); return; }
+    grpEvId = evId; grpDirty = false;
+    const n = { Y: 0, N: 0, U: 0 }; cached.attendees.forEach(a => { n[a.att || 'U']++; });
+    const sel = $('grpWho'); sel.innerHTML = '';
+    const recorded = n.Y + n.N > 0;
+    [recorded ? ['Y', 'Attended (' + n.Y + ')'] : null, recorded ? ['N', 'Didn\u2019t attend (' + n.N + ')'] : null, recorded && n.U ? ['U', 'Not recorded (' + n.U + ')'] : null, ['all', 'Everyone (' + cached.attendees.length + ')']].filter(Boolean).forEach(([k, l]) => { const o = document.createElement('option'); o.value = k; o.textContent = l; sel.appendChild(o); });
+    sel.value = n.Y || n.N ? 'Y' : 'all';
+    $('grpIntro').textContent = '\u201c' + ev.topic + '\u201d' + (n.Y || n.N ? '' : '. Attendance hasn\u2019t been uploaded yet \u2014 use \u201cUpload attendance\u201d first to message the two groups separately.');
+    $('grpError').style.display = 'none'; $('grpDone').style.display = 'none'; $('grpSendBtn').textContent = 'Send email';
+    grpRefresh(true);
+    $('grpOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('grpOverlay').classList.add('open')));
+  }
+  function hideGrp(){ $('grpOverlay').classList.remove('open'); setTimeout(() => $('grpOverlay').classList.add('hidden'), 280); }
+  $('closeGrpBtn').addEventListener('click', hideGrp);
+  $('grpOverlay').addEventListener('click', (e) => { if (e.target === $('grpOverlay')) hideGrp(); });
+  $('msgGroupBtn').addEventListener('click', () => openGrp(currentEventId));
+  $('grpWho').addEventListener('change', () => { $('grpDone').style.display = 'none'; grpRefresh(true); });
+  $('grpSubject').addEventListener('input', () => { grpDirty = true; });
+  $('grpMessage').addEventListener('input', () => { grpDirty = true; });
+  $('grpShowBtn').addEventListener('click', () => { attSegment = $('grpWho').value; attLimit = PAGE_SIZE; hideGrp(); renderAttendees(); });
+  $('grpSendBtn').addEventListener('click', async () => {
+    const err = (m) => { $('grpError').textContent = m; $('grpError').style.display = 'block'; };
+    $('grpError').style.display = 'none'; $('grpDone').style.display = 'none';
+    const k = $('grpWho').value, subject = $('grpSubject').value.trim(), message = $('grpMessage').value.trim();
+    if (!subject || !message) return err('Please write a subject and a message.');
+    if (!confirm('Send this email to everyone in \u201c' + $('grpWho').selectedOptions[0].textContent.replace(/\s*\(\d+\)$/, '') + '\u201d who has an email address?\n\n' + $('grpSum').textContent)) return;
+    $('grpSendBtn').disabled = true; $('grpSendBtn').textContent = 'Sending\u2026';
+    try {
+      const d = await apiPost({ action: 'emailGroup', id: grpEvId, group: GRP_KEY[k], subject: subject, message: message });
+      if (d.error) throw new Error(d.error);
+      $('grpDone').textContent = d.queued ? '\u2713 ' + d.queued + (d.queued === 1 ? ' email' : ' emails') + ' queued \u2014 they go out within a few minutes (each person\u2019s name, time zone and feedback link filled in).' : 'Nobody in this group could be emailed.';
+      $('grpDone').style.display = 'block';
+    } catch (e) { err(e.message || 'Could not send \u2014 nothing was sent.'); }
+    finally { $('grpSendBtn').disabled = false; $('grpSendBtn').textContent = 'Send email'; grpRefresh(false); }
   });
 
   // ── Link activity: how many people opened the registration link ────────────────────
@@ -1765,7 +2134,7 @@
     return nxt.head + ' \u2014 ' + (today ? 'today ' : at.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
   let renderedStageSig = '';
-  const stageSig = () => { const ev = findEvent(currentEventId); return ev ? ev.id + ':' + (activeStage(ev) || '') : ''; };
+  const stageSig = () => { const ev = findEvent(currentEventId); return ev ? ev.id + ':' + (activeStage(ev) || '') + (Date.now() >= new Date(ev.dateISO).getTime() ? ':started' : '') : ''; };
   function remindedCount(ev, stage, list){ return list.filter(a => remSent[sentKey(ev.id, stage, a, ev)]).length; }
 
   /** Webinars whose reminders are open right now and not yet finished. */
@@ -1824,7 +2193,7 @@
     if (!stage) return;
     remSent[sentKey(ev.id, stage, a, ev)] = Date.now();
     lsSet(LS_SENT, JSON.stringify(remSent));
-    if (rowEl) setRowReminded(rowEl, true, '\u2713 ' + STAGE_HEAD(stage) + ' sent');
+    if (rowEl) setRowReminded(rowEl, true, '\u2713 ' + stageLabel(stage) + ' sent');
     renderRemindStrip();
     refreshReminders();
   }
@@ -1839,7 +2208,7 @@
   // The pop-up. It opens by itself when a reminder is newly due (at launch, after a sync, or when 8:00 arrives while
   // the app is open); "Later" closes it and the green banner stays on the list until everyone is reminded.
   const popupShown = new Set();
-  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden') || !$('noticeOverlay').classList.contains('hidden') || !$('linksOverlay').classList.contains('hidden') || !$('leadOverlay').classList.contains('hidden') || !$('uploadOverlay').classList.contains('hidden'); }
+  function overlayOpen(){ return !$('addOverlay').classList.contains('hidden') || !$('remindOverlay').classList.contains('hidden') || !$('noticeOverlay').classList.contains('hidden') || !$('linksOverlay').classList.contains('hidden') || !$('leadOverlay').classList.contains('hidden') || !$('uploadOverlay').classList.contains('hidden') || !$('attOverlay').classList.contains('hidden') || !$('grpOverlay').classList.contains('hidden'); }
   function renderRemindPopup(due){
     const box = $('remindList'); box.innerHTML = '';
     due.forEach(d => {
@@ -2026,11 +2395,12 @@
     const name = document.createElement('div'); name.className = 'name'; name.textContent = a.name || '(no name)';
     who.appendChild(name);
     if (a.src) { const t = document.createElement('div'); t.className = 'tag-lead'; t.textContent = 'Offline lead'; who.appendChild(t); }
+    if (a.att) { const t = document.createElement('div'); t.className = 'tag-att ' + (a.att === 'Y' ? 'yes' : 'no'); t.textContent = a.att === 'Y' ? 'Attended' : 'Didn\u2019t attend'; who.appendChild(t); }
     if (a.email) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = a.email; who.appendChild(s); }
     const line2 = [a.mobile, a.country && a.country !== 'Unknown' ? a.country : ''].filter(Boolean).join(' · ');
     if (line2) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = line2; who.appendChild(s); }
     const actions = document.createElement('div'); actions.className = 'actions';
-    const stage = activeStage(ev);
+    const stage = activeStage(ev) || followKind(a, ev);
     const ph = phoneLinks(a.mobile, a.country);
     if (ph) {
       actions.appendChild(actionLink('call', 'tel:' + ph.tel, 'Call ' + (a.name || ''), false));
@@ -2038,10 +2408,10 @@
       const waBtn = actionLink('wa', waBase + encodeURIComponent(reminderDraft(a, ev, stage)), 'WhatsApp ' + (a.name || ''), true);
       // Which message? Decided at the moment you tap: the stage that is open now, unless this person already got it.
       waBtn.addEventListener('click', (e) => {
-        const st = activeStage(ev);
+        const st = activeStage(ev) || followKind(a, ev);
         if (st && remSent[sentKey(ev.id, st, a, ev)]) {
           const nxt = nextStageText(ev);
-          if (!confirm('\u201c' + STAGE_HEAD(st) + '\u201d has already been sent to ' + (a.name || 'this person') + '.' + (nxt ? '\n\nNext: ' + nxt + '.' : '') + '\n\nSend it again?')) { e.preventDefault(); return; }
+          if (!confirm('\u201c' + stageLabel(st).replace(/[\u201c\u201d]/g, '') + '\u201d has already been sent to ' + (a.name || 'this person') + '.' + (nxt ? '\n\nNext: ' + nxt + '.' : '') + '\n\nSend it again?')) { e.preventDefault(); return; }
         }
         waBtn.href = waBase + encodeURIComponent(reminderDraft(a, ev, st));        // the browser opens the link after this handler, so this is the one it uses
         markReminded(ev, st, a, row);
@@ -2049,20 +2419,41 @@
       actions.appendChild(waBtn);
     }
     if (a.email) {
-      const mailBtn = actionLink('mail', 'mailto:' + a.email + '?subject=' + encodeURIComponent('A gentle reminder: ' + ev.topic) + '&body=' + encodeURIComponent(reminderDraft(a, ev).replace(/\n/g, '\r\n')), 'Email ' + (a.name || ''), false);
-      mailBtn.addEventListener('click', () => markReminded(ev, activeStage(ev), a, row));
+      const mailTo = (k) => 'mailto:' + a.email + '?subject=' + encodeURIComponent((k === 'thx' ? 'Thank you for attending: ' : k === 'miss' ? 'Sorry we missed you: ' : 'A gentle reminder: ') + ev.topic) + '&body=' + encodeURIComponent((k === 'thx' || k === 'miss' ? followDraft(a, ev, k).replace(/\*/g, '') : reminderDraft(a, ev)).replace(/\n/g, '\r\n'));
+      const mailBtn = actionLink('mail', mailTo(followKind(a, ev)), 'Email ' + (a.name || ''), false);
+      mailBtn.addEventListener('click', () => { mailBtn.href = mailTo(followKind(a, ev)); markReminded(ev, activeStage(ev) || followKind(a, ev), a, row); });   // decided at the tap, like the WhatsApp icon
       actions.appendChild(mailBtn);
     }
     row.append(who, actions);
-    if (stage && remSent[sentKey(ev.id, stage, a, ev)]) setRowReminded(row, true, '\u2713 ' + STAGE_HEAD(stage) + ' sent');
+    if (stage && remSent[sentKey(ev.id, stage, a, ev)]) setRowReminded(row, true, '\u2713 ' + stageLabel(stage) + ' sent');
     return row;
   }
 
   let renderedCount = 0;
   let matchedList = [];
+  // Once attendance is recorded the list can be narrowed to "Attended" / "Didn't attend" / "Not recorded", and is sorted:
+  // attended first, then didn't attend, then not recorded — each in alphabetical order.
+  let attSegment = 'all', segFor = '';
+  const attRank = (a) => a.att === 'Y' ? 0 : a.att === 'N' ? 1 : 2;
   function filteredAttendees(all){
     const q = $('attendeeSearch').value.trim().toLowerCase();
-    return q ? all.filter(a => (a.name + ' ' + a.email + ' ' + a.mobile + ' ' + a.country).toLowerCase().includes(q)) : all;
+    let out = q ? all.filter(a => (a.name + ' ' + a.email + ' ' + a.mobile + ' ' + a.country).toLowerCase().includes(q)) : all;
+    if (attSegment !== 'all') out = out.filter(a => attRank(a) === ({ Y: 0, N: 1, U: 2 })[attSegment]);
+    if (all.some(a => a.att)) out = out.slice().sort((a, b) => attRank(a) - attRank(b) || String(a.name).localeCompare(String(b.name)));
+    return out;
+  }
+  function renderSegments(list){
+    const box = $('attSegs');
+    const n = { Y: 0, N: 0, U: 0 }; list.forEach(a => { n[a.att || 'U']++; });
+    if (!list.some(a => a.att)) { box.classList.add('hidden'); attSegment = 'all'; return; }
+    box.innerHTML = '';
+    [['all', 'All', list.length], ['Y', 'Attended', n.Y], ['N', 'Didn\u2019t attend', n.N], ['U', 'Not recorded', n.U]].forEach(([k, label, count]) => {
+      if (k === 'U' && !count) return;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'seg-chip' + (attSegment === k ? ' on' : ''); b.textContent = label + ' ' + count;
+      b.addEventListener('click', () => { attSegment = k; attLimit = PAGE_SIZE; renderAttendees(); });
+      box.appendChild(b);
+    });
+    box.classList.remove('hidden');
   }
   function appendRows(ev){
     const list = $('attendeeList');
@@ -2106,6 +2497,8 @@
       }
       return;
     }
+    if (segFor !== ev.id) { segFor = ev.id; attSegment = 'all'; }
+    renderSegments(cached.attendees);
     $('attendeeSearch').classList.toggle('hidden', cached.attendees.length < 6);
     $('exportBtn').classList.toggle('hidden', cached.attendees.length === 0); $('exportXlsxBtn').classList.toggle('hidden', cached.attendees.length === 0);
     if (cached.attendees.length === 0) {
@@ -2137,7 +2530,7 @@
     $('dConductedBy').textContent = 'Conducted by ' + ev.conductedBy;
     $('dCount').textContent = ev.registered + (ev.registered === 1 ? ' person registered' : ' people registered');
     const updating = !isFresh(ev) && !!loadAtt(ev.id) && !attError[ev.id];
-    $('attendeesLabel').textContent = 'Registered (' + ev.registered + ')' + (updating ? ' · updating…' : '');
+    $('attendeesLabel').textContent = 'Registered (' + ev.registered + ')' + (ev.attended || ev.absent ? ' · ' + (ev.attended || 0) + ' attended · ' + (ev.absent || 0) + ' didn\u2019t' : '') + (updating ? ' · updating…' : '');
 
     const linkEl = $('dMeetingLink');
     linkEl.innerHTML = '';
@@ -2190,8 +2583,8 @@
     const cached = ev && loadAtt(ev.id);
     if (!cached) return;
     const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const lines = [['Name', 'Email', 'Mobile', 'Country', 'Source'].map(esc).join(',')]
-      .concat(cached.attendees.map(a => [a.name, a.email, a.mobile, a.country, a.src ? 'Offline lead' : 'Registration link'].map(esc).join(',')));
+    const lines = [['Name', 'Email', 'Mobile', 'Country', 'Source', 'Attendance'].map(esc).join(',')]
+      .concat(cached.attendees.map(a => [a.name, a.email, a.mobile, a.country, a.src ? 'Offline lead' : 'Registration link', a.att === 'Y' ? 'Attended' : a.att === 'N' ? 'Did not attend' : ''].map(esc).join(',')));
     const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
