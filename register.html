@@ -229,7 +229,7 @@
 
     <div id="closedState" class="invalid">
       <h1 style="font-size:1.3rem;" id="closedTitle">Registration has closed</h1>
-      <p>This webinar has already taken place. Please get in touch with the organiser to hear about upcoming sessions.</p>
+      <p id="closedMsg">This webinar has already taken place. Please get in touch with the organiser to hear about upcoming sessions.</p>
     </div>
 
     <form id="regForm">
@@ -274,6 +274,23 @@
           </div>
         </div>
 
+        <div class="row-2">
+          <div>
+            <label class="form-label" for="profession">Profession</label>
+            <select class="field" id="profession" required>
+              <option value="" selected disabled>Select&hellip;</option>
+              <option>Salaried</option><option>Retired</option><option>Business</option><option>Others</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="income">Monthly family income</label>
+            <select class="field" id="income" required>
+              <option value="" selected disabled>Select&hellip;</option>
+              <option>Below INR 2 Lakh</option><option>INR 2 to 5 Lakhs</option><option>INR 5 Lakhs above</option>
+            </select>
+          </div>
+        </div>
+
         <button type="submit" class="submit" id="submitBtn">Reserve my seat</button>
         <p class="error-msg" id="errorMsg"></p>
       </div>
@@ -286,6 +303,7 @@
       <h2>You're registered</h2>
       <p id="successCopy"></p>
       <a class="cal-btn join" id="joinLink" target="_blank" rel="noopener" style="display:none;">Join the webinar</a>
+      <p id="loginNote" style="display:none; font-size:.9rem; line-height:1.5; margin:8px 0 14px; opacity:.85;">Please log in to the webinar using the same email ID that you used to register for it.</p>
       <div class="cal-buttons">
         <a class="cal-btn primary" id="gcalLink" target="_blank" rel="noopener">Add to Google Calendar</a>
         <a class="cal-btn secondary" id="icsLink" target="_blank" rel="noopener">Add to Apple / Outlook</a>
@@ -392,8 +410,11 @@
     return data && (data.code === 'NOT_FOUND' || /invalid or has been removed/i.test(String(data.error || '')));
   }
   function showInvalid() { $('regForm').style.display = 'none'; $('invalidState').style.display = 'block'; }
-  function showClosed(d) {
+  function showClosed(d, why) {
     $('closedTitle').textContent = 'Registration for \u201c' + d.topic + '\u201d has closed';
+    $('closedMsg').textContent = why === 'cutoff'
+      ? 'Registration closes 1 hour before the webinar starts, and that time has now passed. If you registered earlier, your confirmation email has the joining link. Otherwise, please get in touch with the organiser to hear about upcoming sessions.'
+      : 'This webinar has already taken place. Please get in touch with the organiser to hear about upcoming sessions.';
     $('regForm').style.display = 'none';
     $('closedState').style.display = 'block';
   }
@@ -406,8 +427,11 @@
     paint();
     saveCache(data);
     note(moved ? 'Please note: this webinar\u2019s date has been updated \u2014 the new date is shown above.' : '');
-    var endsAt = new Date(data.dateISO).getTime() + (Number(data.durationMinutes) || 60) * 60000;
-    if (Date.now() > endsAt) showClosed(data);       // only the backend can say a webinar is over
+    var startAt = new Date(data.dateISO).getTime();
+    var endsAt = startAt + (Number(data.durationMinutes) || 60) * 60000;
+    var closesAt = startAt - (Number(data.regCloseMinutes) || 60) * 60000;        // new registrations close 1 hour before the start
+    if (Date.now() > endsAt) showClosed(data, 'ended');                           // only the backend can say a webinar is over / closed
+    else if (Date.now() >= closesAt) showClosed(data, 'cutoff');
   }
   function degrade() {
     // The backend couldn't be reached. Keep the page usable; never claim the link is invalid or closed.
@@ -599,6 +623,8 @@
       email: $('email').value.trim(),
       mobile: mob.value,
       country: $('country').value,
+      profession: $('profession').value,
+      income: $('income').value,
       recaptchaToken: await getRecaptchaToken()
     };
 
@@ -614,6 +640,7 @@
       var text = await res.text();
       var data;
       try { data = JSON.parse(text); } catch (x) { throw new Error('The server sent an unexpected reply. Please try again in a moment.'); }
+      if (data && data.code === 'CLOSED') { showClosed(ev, /already taken place/i.test(String(data.error)) ? 'ended' : 'cutoff'); return; }   // the page was open when registration closed
       if (data.error) throw new Error(data.error);
 
       $('regForm').style.display = 'none';
@@ -625,6 +652,7 @@
       if (data.event && data.event.meetingLink) {
         $('joinLink').href = data.event.meetingLink;
         $('joinLink').style.display = 'block';
+        $('loginNote').style.display = 'block';
       }
       $('successState').style.display = 'block';
     } catch (err) {
