@@ -934,7 +934,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '6.1';
+  const APP_VERSION = '6.3';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -1963,6 +1963,8 @@
       if (!d.rows.length) { toast('Nobody is registered for this webinar yet'); return; }
       await loadSheetJS();
       const X = window.XLSX, ws = X.utils.aoa_to_sheet([d.headers].concat(d.rows));
+      const mc = d.headers.indexOf('Mobile no.');                         // a mobile stored as a number stays a number in Excel, shown in full with its +
+      if (mc >= 0) d.rows.forEach((r, i) => { const a = X.utils.encode_cell({ c: mc, r: i + 1 }); if (ws[a] && ws[a].t === 'n') ws[a].z = '"+"0'; });
       ws['!cols'] = d.headers.map((h, i) => ({ wch: Math.min(42, Math.max(String(h).length, ...d.rows.slice(0, 300).map(r => String(r[i] == null ? '' : r[i]).length)) + 2) }));
       const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Registered');
       const day = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(ev.dateISO)).replace(/\s+/g, '-');

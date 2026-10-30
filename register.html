@@ -540,6 +540,7 @@
   var HINT = { 'UAE': '5x xxx xxxx', 'Saudi Arabia': '5x xxx xxxx', 'Qatar': 'xxxx xxxx', 'Kuwait': 'xxxx xxxx', 'Oman': 'xxxx xxxx',
                'Bahrain': 'xxxx xxxx', 'India': 'xxxxx xxxxx', 'USA': 'xxx xxx xxxx', 'UK': '7xxx xxxxxx', 'Canada': 'xxx xxx xxxx',
                'Australia': '4xx xxx xxx', 'Singapore': 'xxxx xxxx' };
+  var NAT = { 'UAE': 9, 'Saudi Arabia': 9, 'Qatar': 8, 'Kuwait': 8, 'Oman': 8, 'Bahrain': 8, 'India': 10, 'USA': 10, 'UK': 10, 'Canada': 10, 'Australia': 9, 'Singapore': 8 };   // national number lengths
   var currentDial = DIAL[$('country').value] || '';
   function caretToEnd() { var m = $('mobile'), n = m.value.length; try { m.setSelectionRange(n, n); } catch (e) { /* not supported — harmless */ } }
 
@@ -564,6 +565,13 @@
   /** "+971 0501234567" → "+971 501234567" (people often type the leading 0 of a local number), and checks a number was entered. */
   function tidyMobile() {
     var m = $('mobile'), v = m.value.trim();
+    if (v && v.charAt(0) !== '+' && currentDial) {                  // they cleared the box and typed a number WITHOUT its country code: add it
+      var digits = v.replace(/\D/g, ''), code = currentDial.slice(1), nat = NAT[$('country').value] || 9;
+      if (digits.indexOf('00') === 0) v = '+' + digits.slice(2);
+      else if (digits.indexOf(code) === 0 && digits.length >= code.length + nat) v = currentDial + ' ' + digits.slice(code.length);
+      else v = currentDial + ' ' + v.replace(/^[\s\-]*0+[\s\-]*(?=\d)/, '');
+      m.value = v;
+    }
     if (currentDial && v.indexOf(currentDial) === 0) {
       var rest = v.slice(currentDial.length).trim().replace(/^[\s\-]*0+[\s\-]*(?=\d)/, '');
       v = currentDial + ' ' + rest;
@@ -647,6 +655,7 @@
       $('successCopy').textContent = data.alreadyRegistered
         ? "You were already registered — we're re-sending the details to " + payload.email + '.'
         : "We're emailing the details to " + payload.email + ' — it should arrive within a minute.';
+      if (data.alreadyRegistered && data.savedAnswers) $('successCopy').textContent += ' Thank you \u2014 your answers have been added to your registration.';
       $('gcalLink').href = data.googleCalendarLink;
       $('icsLink').href = data.icsUrl;
       if (data.event && data.event.meetingLink) {
