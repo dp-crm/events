@@ -1,6 +1,10 @@
 <!doctype html>
 <html lang="en">
-  <!-- Meta Pixel Code -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Register — Wealth Matrix</title>
+<!-- Meta Pixel Code -->
 <script>
 !function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -17,10 +21,6 @@ fbq('track', 'PageView');
 src="https://www.facebook.com/tr?id=1763691218021792&ev=PageView&noscript=1"
 /></noscript>
 <!-- End Meta Pixel Code -->
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Register — Wealth Matrix</title>
 <meta name="theme-color" content="#10213A" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B1420" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icon-192.png">
@@ -681,6 +681,16 @@ src="https://www.facebook.com/tr?id=1763691218021792&ev=PageView&noscript=1"
         $('loginNote').style.display = 'block';
       }
       $('successState').style.display = 'block';
+
+      // Meta Pixel: count only NEW registrations as a Lead (never failed, closed or repeat registrations)
+      try {
+        if (window.fbq && !data.alreadyRegistered) {
+          fbq('track', 'Lead', {
+            content_name: ev.topic || document.title,
+            content_category: eventId
+          });
+        }
+      } catch (px) { /* tracking must never break the success screen */ }
     } catch (err) {
       var msg = err && err.message;
       if (err && err.name === 'AbortError') msg = 'This is taking longer than usual. Please try again — if your registration already went through, we\u2019ll simply re-send your confirmation.';
