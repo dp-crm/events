@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>I am interested — Wealth Matrix</title>
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<script src="config.js" defer></script>
+<style>
+  /* Built to be light: one file, no images, no web fonts, no libraries. Nothing but this page and the tiny config.js is downloaded. */
+  :root{--paper:#E9EDF1;--surface:#fff;--ink:#10213A;--soft:#4C5A6E;--line:#D7DCE3;--gold:#B8863B;--green:#2F6F4E;--red:#B0402F;--btn:#2557D6;--v:clamp(5px,1.5vh,16px);--fs:clamp(16px,.45vw + 14px,19px)}
+  @media (prefers-color-scheme:dark){:root{--paper:#0B1420;--surface:#141F2E;--ink:#EDEFF2;--soft:#9AA7B8;--line:#283A50;--gold:#D2A05C;--green:#4CAF7D;--red:#E28173}}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{background:var(--paper);font-size:var(--fs);-webkit-text-size-adjust:100%;overflow-x:hidden}
+  html,body{margin:0;padding:0}
+  body{min-height:100vh;min-height:100dvh;display:flex;padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:var(--ink);line-height:1.4}
+  .wrap{margin:auto;width:100%;max-width:27rem}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:calc(var(--v)*2.2) clamp(16px,5vw,28px) calc(var(--v)*2);box-shadow:0 12px 32px -16px rgba(16,33,58,.2);overflow-wrap:anywhere}
+  .brand{margin:0 0 var(--v);font-size:.74rem;color:var(--soft);letter-spacing:.02em}
+  h1{margin:0 0 calc(var(--v)*.7);font-family:Georgia,'Times New Roman',serif;font-weight:600;line-height:1.2;letter-spacing:-.01em;font-size:clamp(1.1rem,4.6vw,1.45rem)}
+  h1 span{display:block;font-size:.78em;font-weight:500;color:var(--gold);margin-bottom:.15em}
+  h1 b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;font-weight:600}
+  .lead{margin:0 0 calc(var(--v)*.6);font-size:.88rem;color:var(--soft)}
+  label{display:block;font-size:.74rem;color:var(--soft);margin:calc(var(--v)*.9) 0 .2rem}
+  .row{display:grid;grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);gap:.6rem}
+  .row>div{min-width:0}
+  input,select{width:100%;padding:clamp(9px,1.6vh,13px) clamp(.5rem,2.2vw,.7rem);border:1px solid var(--line);border-radius:9px;font:inherit;font-size:1rem;line-height:1.25;color:var(--ink);background:var(--surface);text-overflow:ellipsis}
+  select{padding-right:.3rem}
+  input:focus,select:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:var(--gold)}
+  .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+  button{width:100%;margin-top:calc(var(--v)*1.6);padding:clamp(11px,2vh,15px) 1rem;border:0;border-radius:9px;background:var(--btn);color:#fff;font:inherit;font-size:1.02rem;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.6;cursor:default}
+  button:active:not(:disabled){transform:scale(.98)}
+  .err{display:none;margin:calc(var(--v)*.8) 0 0;font-size:.85rem;color:var(--red)}
+  .fine{margin:calc(var(--v)*1.1) 0 0;font-size:.68rem;line-height:1.35;color:var(--soft);text-align:center}
+  #thanks{display:none;text-align:center;padding:calc(var(--v)*1.5) 0}
+  #thanks .tick{width:3rem;height:3rem;margin:0 auto var(--v);border-radius:50%;background:#E7F1EB;color:var(--green);display:flex;align-items:center;justify-content:center}
+  #thanks h2{margin:0 0 .3rem;font-family:Georgia,'Times New Roman',serif;font-size:1.35rem;font-weight:600}
+  #thanks p{margin:0;color:var(--soft);font-size:.95rem}
+  @media (max-width:359px){.row{grid-template-columns:minmax(0,.62fr) minmax(0,1.38fr)}}
+  @media (max-height:560px){.lead,.brand{display:none}label{margin-top:.3rem}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+  <p class="brand" id="firm">Wealth Matrix</p>
+  <h1><span>Yes, I am interested in</span> <b id="topic">&nbsp;</b></h1>
+
+  <form id="f" novalidate>
+    <p class="lead">Share your name and mobile number and we will call you for a one-to-one discussion.</p>
+    <label for="name">Your name</label>
+    <input id="name" autocomplete="name" required maxlength="80">
+    <div class="row">
+      <div><label for="country">Country</label><select id="country"></select></div>
+      <div><label for="mobile">Mobile number</label><input id="mobile" type="tel" inputmode="tel" autocomplete="tel" required></div>
+    </div>
+    <input class="hp" id="website" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <button type="submit" id="go">Yes, I am interested</button>
+    <p class="err" id="err" role="alert"></p>
+    <p class="fine">By tapping, you agree that Wealth Matrix may contact you on this number.<br>ARN-309716 | Mutual Fund and SIF Distributor</p>
+  </form>
+
+  <div id="thanks" role="status">
+    <div class="tick"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <h2 id="thanksTitle">Thank you!</h2>
+    <p>We will call you shortly for a one-to-one discussion.</p>
+  </div>
+</div></div>
+
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var q = new URLSearchParams(location.search), id = (q.get('id') || '').trim(), topic = (q.get('t') || '').trim(), opened = Date.now(), busy = false, done = false;
+  var DIAL = { 'UAE': '+971', 'Saudi Arabia': '+966', 'Qatar': '+974', 'Kuwait': '+965', 'Oman': '+968', 'Bahrain': '+973', 'India': '+91', 'USA': '+1', 'UK': '+44', 'Canada': '+1', 'Australia': '+61', 'Singapore': '+65' };
+  var NAT = { 'UAE': 9, 'Saudi Arabia': 9, 'Qatar': 8, 'Kuwait': 8, 'Oman': 8, 'Bahrain': 8, 'India': 10, 'USA': 10, 'UK': 10, 'Canada': 10, 'Australia': 9, 'Singapore': 8 };
+  var sel = $('country'), cur = '';
+  Object.keys(DIAL).forEach(function (k) { var o = document.createElement('option'); o.textContent = k; sel.appendChild(o); });
+  var o2 = document.createElement('option'); o2.textContent = 'Other'; sel.appendChild(o2);
+  var want = q.get('c'); sel.value = DIAL[want] ? want : 'UAE';                       // the link can pick the starting country: &c=India
+  function setDial() { cur = DIAL[sel.value] || ''; $('mobile').placeholder = cur ? cur + ' mobile number' : '+ country code, then number'; }
+  setDial(); $('mobile').value = cur ? cur + ' ' : '';
+
+  if (!id) { $('f').style.display = 'none'; $('topic').textContent = 'Wealth Matrix'; $('thanks').style.display = 'block'; $('thanksTitle').textContent = 'This link is incomplete'; $('thanks').lastElementChild.textContent = 'Please scan the QR code again.'; $('thanks').firstElementChild.style.display = 'none'; return; }
+  if (topic) { $('topic').textContent = topic; document.title = 'I am interested in ' + topic; }
+
+  sel.addEventListener('change', function () {                                          // swap the code, keep what was typed
+    var m = $('mobile'), v = m.value.trim(), dial = DIAL[sel.value] || '';
+    if (!v || v === cur) m.value = dial ? dial + ' ' : '';
+    else if (cur && v.indexOf(cur) === 0) m.value = (dial ? dial + ' ' : '+') + v.slice(cur.length).trim();
+    setDial();
+  });
+  $('mobile').addEventListener('focus', function () { var m = this; setTimeout(function () { if (m.value.trim() === cur && m.selectionStart === m.selectionEnd) { try { m.setSelectionRange(m.value.length, m.value.length); } catch (e) {} } }, 0); });
+
+  function tidy() {                                                                     // "+971 0501234567" → "+971 501234567"
+    var m = $('mobile'), v = m.value.trim();
+    if (v && v.charAt(0) !== '+' && cur) {
+      var d = v.replace(/\D/g, ''), code = cur.slice(1), nat = NAT[sel.value] || 9;
+      if (d.indexOf('00') === 0) v = '+' + d.slice(2);
+      else if (d.indexOf(code) === 0 && d.length >= code.length + nat) v = cur + ' ' + d.slice(code.length);
+      else v = cur + ' ' + v.replace(/^[\s\-]*0+[\s\-]*(?=\d)/, '');
+      m.value = v;
+    }
+    if (cur && v.indexOf(cur) === 0) {
+      var rest = v.slice(cur.length).trim().replace(/^[\s\-]*0+[\s\-]*(?=\d)/, '');
+      v = cur + ' ' + rest; m.value = v;
+      if (rest.replace(/\D/g, '').length < 6) return { ok: false, msg: 'Please enter your mobile number after ' + cur + '.' };
+    } else if (v.replace(/\D/g, '').length < 7) return { ok: false, msg: 'Please enter your full mobile number, with the country code.' };
+    return { ok: true, value: v };
+  }
+  function err(t) { var e = $('err'); e.textContent = t; e.style.display = t ? 'block' : 'none'; }
+
+  function thanks(first) {
+    done = true; $('f').style.display = 'none'; $('thanks').style.display = 'block';
+    if (first) $('thanksTitle').textContent = 'Thank you, ' + first + '!';
+    try { fetch(WEB_APP_URL + '?action=flush', { method: 'GET', mode: 'no-cors', credentials: 'omit', keepalive: true }).catch(function () {}); } catch (e) {}   // "now send it on to the CRM"
+  }
+  function send(body, n) {
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null, t = setTimeout(function () { if (ctrl) ctrl.abort(); }, 20000);
+    fetch(WEB_APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) { return r.text(); })
+      .then(function (txt) { var d; try { d = JSON.parse(txt); } catch (e) { throw { retry: true }; } if (d && d.success) return thanks(d.first); if (d && d.busy) throw { retry: true }; throw { msg: (d && d.error) || 'Something went wrong. Please try again.' }; })
+      .catch(function (e) {
+        clearTimeout(t);
+        if (e && e.msg) { busy = false; $('go').disabled = false; return err(e.msg); }
+        if (n < 2) { setTimeout(function () { send(body, n + 1); }, 1200 * (n + 1)); return; }          // a lost signal or a busy moment: try again quietly (the server never counts you twice)
+        busy = false; $('go').disabled = false; err('We could not reach the server. Please check your connection and tap again.');
+      })
+      .then(function () { clearTimeout(t); });
+  }
+  $('f').addEventListener('submit', function (e) {
+    e.preventDefault(); if (busy || done) return;
+    var nm = $('name').value.trim(); if (nm.length < 2) { err('Please enter your name.'); $('name').focus(); return; }
+    var mob = tidy(); if (!mob.ok) { err(mob.msg); $('mobile').focus(); return; }
+    err(''); busy = true; $('go').disabled = true;
+    send({ action: 'interest', id: id, name: nm, mobile: mob.value, country: sel.value, website: $('website').value, took: Date.now() - opened, flushLater: true }, 0);
+  });
+
+  // A link without the webinar's name in it: ask for it once the config has loaded (the form works meanwhile).
+  if (!topic) document.addEventListener('DOMContentLoaded', function () {
+    try { fetch(WEB_APP_URL + '?action=getEvent&id=' + encodeURIComponent(id)).then(function (r) { return r.json(); }).then(function (d) { if (d && d.topic) { $('topic').textContent = d.topic; document.title = 'I am interested in ' + d.topic; } }).catch(function () {}); } catch (e) {}
+  });
+  document.addEventListener('DOMContentLoaded', function () { if (typeof FIRM_NAME === 'string' && FIRM_NAME) $('firm').textContent = FIRM_NAME; });
+})();
+</script>
+</body>
+</html>
