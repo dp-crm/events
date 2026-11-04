@@ -2,34 +2,24 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <title>Register — Wealth Matrix</title>
-<!-- Meta Pixel Code -->
-<script>
-!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '1329291769160349');
-fbq('track', 'PageView');
-</script>
-<noscript><img height="1" width="1" style="display:none"
-src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
-/></noscript>
-<!-- End Meta Pixel Code -->
 <meta name="theme-color" content="#10213A" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B1420" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icon-192.png">
 <!-- Apps Script is only called AFTER the page is visible; these just open the connections early so that call is quicker. -->
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="dns-prefetch" href="https://script.google.com">
+<link rel="dns-prefetch" href="https://script.googleusercontent.com">
 <script src="config.js" defer></script>
 <style>
-  /* No web fonts: the page uses each phone's own fonts, so there is nothing extra to download and nothing to wait for. */
+  /* No web fonts: the page uses each device's own fonts, so there is nothing extra to download and nothing to wait for.
+     LAYOUT: every size below scales with the screen. The form (all six fields + the button) is built to be seen in ONE view:
+       - phones: one compact column (name, email, country + mobile, profession + income, button), spacing shrinks on short screens;
+       - tablets / small laptops: the same card, wider, fields in two columns;
+       - desktops and landscape phones: two panes — the webinar on the left, the form on the right. */
   :root{
     --paper:#E9EDF1;
     --surface:#FFFFFF;
@@ -44,6 +34,9 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
     --btn-blue:#2557D6;
     --btn-blue-text:#FFFFFF;
     --gold-btn-text:#241900;
+    --fs:clamp(16px, .45vw + 14px, 19px);     /* the base text size: never under 16px, grows gently on big screens */
+    --v:clamp(4px, 1.3vh, 14px);               /* the vertical rhythm: shrinks on short screens, grows on tall ones */
+    --pad-x:clamp(14px, 4vw, 28px);
   }
   @media (prefers-color-scheme: dark){
     :root{
@@ -58,27 +51,24 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
       --red:#E28173;
     }
   }
-  html{ overscroll-behavior-y:none; overflow-x:hidden; }
-  body{ overflow-x:hidden; }
-  input, select, textarea{ font-size:16px; }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html{ background:var(--paper); font-size:var(--fs); overscroll-behavior-y:none; overflow-x:hidden; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   html,body{margin:0;padding:0;}
   body{
     background:var(--paper);
     color:var(--ink);
     font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
     min-height:100vh;
+    min-height:100dvh;
     display:flex;
-    align-items:flex-start;
-    justify-content:center;
-    padding:40px 16px calc(64px + env(safe-area-inset-bottom,0px));
-    padding-top:calc(40px + env(safe-area-inset-top,0px));
+    padding:max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    overflow-x:hidden;
     overscroll-behavior-y:none;
-    line-height:1.5;
+    line-height:1.4;
   }
+  .wrap{ margin:auto; width:100%; max-width:30rem; }           /* margin:auto centres it AND still lets it scroll if it is ever taller than the screen */
   .card{
     width:100%;
-    max-width:440px;
     background:var(--surface);
     border-radius:var(--radius);
     border:1px solid var(--line);
@@ -87,81 +77,93 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
     overflow-wrap:break-word;
     word-break:break-word;
   }
-  .card-top{ padding:32px 28px 24px; }
+  .card-top{ padding:calc(var(--v) * 2.2) var(--pad-x) var(--v); }
   .wordmark{
-    font-size:.8rem;
+    font-size:.72rem;
     font-weight:500;
+    letter-spacing:.02em;
     color:var(--ink-soft);
-    margin:0 0 18px;
+    margin:0 0 calc(var(--v) * .6);
   }
   h1{
     font-family:Georgia,'Times New Roman',serif;
     font-weight:600;
-    font-size:1.7rem;
-    line-height:1.22;
-    margin:0 0 18px;
+    font-size:clamp(1.15rem, 4.8vw + .1rem, 1.55rem);
+    line-height:1.2;
+    margin:0 0 var(--v);
     letter-spacing:-.01em;
+    display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden;   /* a very long title never pushes the form off the screen */
   }
   .meta{
     border-top:1px solid var(--line);
-    padding-top:16px;
+    padding-top:calc(var(--v) * .8);
     display:flex;
     flex-direction:column;
-    gap:8px;
+    gap:calc(var(--v) * .35);
   }
   .meta-row{
     display:flex;
     align-items:flex-start;
-    gap:10px;
-    font-size:.94rem;
+    gap:.55rem;
+    font-size:.86rem;
+    line-height:1.35;
     color:var(--ink-soft);
   }
-  .meta-row svg{ flex:none; margin-top:2px; }
+  .meta-row svg{ flex:none; margin-top:.15em; width:1em; height:1em; }
   .meta-row span{ min-width:0; }
   .meta-row strong{ color:var(--ink); font-weight:500; }
   .description{
-    margin:14px 0 0;
-    font-size:.9rem;
+    margin:var(--v) 0 0;
+    font-size:.82rem;
     color:var(--ink-soft);
-    line-height:1.55;
+    line-height:1.45;
     white-space:pre-line;
+    cursor:pointer;
   }
+  /* the script shows it with an inline display:block; on a phone it is kept to 2 lines (tap to read all) so the form stays in view */
+  .description[style*="block"]{ display:-webkit-box !important; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+  .description.open[style*="block"]{ display:block !important; -webkit-line-clamp:unset; }
+  .note{ margin:var(--v) 0 0; font-size:.8rem; color:var(--ink-soft); }
 
-  .card-bottom{ padding:6px 28px 32px; }
+  .card-bottom{ padding:calc(var(--v) * .3) var(--pad-x) calc(var(--v) * 1.8); }
+  .fields{ display:grid; grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr); column-gap:.6rem; }   /* country | mobile, profession | income: the second box is the one with the long text */
+  .f{ min-width:0; }
+  .f-name, .f-email{ grid-column:1 / -1; }
   .form-label{
     display:block;
-    font-size:.86rem;
+    font-size:.74rem;
     color:var(--ink-soft);
-    margin:16px 0 6px;
+    margin:calc(var(--v) * .9) 0 .2rem;
   }
   .field{
     width:100%;
-    padding:11px 13px;
+    padding:clamp(8px, 1.5vh, 12px) clamp(.5rem, 2.2vw, .7rem);
     border:1px solid var(--line);
     border-radius:9px;
-    font-size:16px;
+    font-size:1rem;                         /* 16px or more: phones never zoom in when a field is tapped */
+    line-height:1.25;
     font-family:inherit;
     color:var(--ink);
     background:var(--surface);
+    text-overflow:ellipsis;
   }
+  select.field{ padding-right:.3rem; }
   .field:focus{
     outline:2px solid var(--gold);
     outline-offset:1px;
     border-color:var(--gold);
   }
-  .row-2{ display:flex; gap:10px; }
-  .row-2 > *{ flex:1; min-width:0; }
 
   button.submit{
     width:100%;
-    margin-top:24px;
-    padding:13px 16px;
+    margin-top:calc(var(--v) * 1.5);
+    padding:clamp(10px, 1.8vh, 14px) 1rem;
     border:none;
     border-radius:9px;
     background:var(--btn-blue);
     color:var(--btn-blue-text);
     font-family:inherit;
-    font-size:.98rem;
+    font-size:1rem;
     font-weight:600;
     cursor:pointer;
   }
@@ -175,33 +177,32 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
   }
 
   .error-msg{
-    margin-top:12px;
-    font-size:.87rem;
+    margin:calc(var(--v) * .8) 0 0;
+    font-size:.84rem;
     color:var(--red);
     display:none;
   }
 
   /* success state */
-  .success{ display:none; padding:32px 28px 34px; text-align:left; }
+  .success{ display:none; padding:calc(var(--v) * 2.4) var(--pad-x) calc(var(--v) * 2.6); text-align:left; }
   .success .tick{
-    width:44px; height:44px; border-radius:50%;
+    width:2.6rem; height:2.6rem; border-radius:50%;
     background:#E7F1EB; color:var(--green);
     display:flex; align-items:center; justify-content:center;
-    margin-bottom:16px;
+    margin-bottom:var(--v);
   }
   .success h2{
     font-family:Georgia,'Times New Roman',serif;
     font-weight:600;
-    font-size:1.4rem;
-    margin:0 0 8px;
+    font-size:clamp(1.2rem, 4.2vw + .1rem, 1.5rem);
+    margin:0 0 calc(var(--v) * .6);
   }
-  .success p{ color:var(--ink-soft); font-size:.94rem; margin:0 0 20px; }
-  .cal-buttons{ display:flex; flex-wrap:wrap; gap:10px; }
+  .success p{ color:var(--ink-soft); font-size:.92rem; margin:0 0 var(--v); }
+  .cal-buttons{ display:flex; flex-wrap:wrap; gap:.6rem; }
   .cal-btn{
-    flex:1;
-    min-width:170px;
+    flex:1 1 9rem;
     text-align:center;
-    padding:11px 14px;
+    padding:.7rem .8rem;
     border-radius:9px;
     text-decoration:none;
     font-size:.9rem;
@@ -209,12 +210,13 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
   }
   .cal-btn.primary{ background:var(--btn-blue); color:var(--btn-blue-text); }
   .cal-btn.secondary{ border:1px solid var(--line); color:var(--ink); }
-  .cal-btn.join{ display:block; width:100%; background:var(--gold); color:var(--gold-btn-text); font-weight:600; margin-bottom:10px; }
-  .reminder-note{ margin-top:22px; font-size:.87rem; color:var(--ink-soft); }
+  .cal-btn.join{ display:block; width:100%; background:var(--gold); color:var(--gold-btn-text); font-weight:600; margin-bottom:.6rem; }
+  .reminder-note{ margin-top:var(--v); font-size:.84rem; color:var(--ink-soft); }
 
-  /* invalid-link state */
-  .invalid{ display:none; padding:48px 28px; text-align:center; }
+  /* invalid-link / closed state */
+  .invalid{ display:none; padding:calc(var(--v) * 3) var(--pad-x); text-align:center; }
   .invalid p{ color:var(--ink-soft); font-size:.95rem; }
+  .invalid h1{ display:block; -webkit-line-clamp:unset; }
 
   .loading{ padding:48px 28px; text-align:center; color:var(--ink-soft); font-size:.92rem; }
 
@@ -224,19 +226,87 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
   h1.is-loading{ min-height:2.44em; }
   h1.is-loading .sk + .sk{ margin-top:.35em; }
   .meta-row .sk{ display:inline-block; width:11em; max-width:100%; height:1em; vertical-align:middle; }
-  .note{ margin:14px 0 0; font-size:.84rem; color:var(--ink-soft); }
 
   footer{
     text-align:center;
-    font-size:.78rem;
+    font-size:.72rem;
     color:var(--ink-soft);
-    margin-top:22px;
+    margin-top:calc(var(--v) * 1.2);
+  }
+
+  /* ── short phones: give the space back to the form ── */
+  @media (max-width:599px) and (max-height:660px){
+    .wordmark{ display:none; }
+    footer{ display:none; }
+    .description[style*="block"]{ -webkit-line-clamp:1; }
+  }
+  @media (max-width:599px) and (max-height:540px){
+    .description[style*="block"]{ display:none !important; }
+    .meta-row svg{ display:none; }
+    h1{ -webkit-line-clamp:2; }
+  }
+  @media (max-width:599px) and (max-height:510px){
+    .meta-row:nth-child(2){ display:none; }               /* the host's name goes; the date and time stay */
+    .form-label{ margin:.28rem 0 .12rem; }
+    .field{ padding-top:6px; padding-bottom:6px; }
+    button.submit{ margin-top:8px; padding:9px 1rem; }
+    .card-top{ padding-top:10px; }
+    .card-bottom{ padding-bottom:10px; }
+  }
+
+  /* ── tablets and small laptops: wider card, fields in two columns ── */
+  @media (min-width:600px){
+    .wrap{ max-width:42rem; }
+    .fields{ grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); column-gap:1rem; }
+    .f-name, .f-email{ grid-column:auto; }
+    .card-top{ padding:calc(var(--v) * 2.4) 2rem var(--v); }
+    .card-bottom{ padding:calc(var(--v) * .4) 2rem calc(var(--v) * 2); }
+    h1{ font-size:clamp(1.4rem, 2.6vw, 1.9rem); }
+    .meta-row{ font-size:.95rem; }
+    .description{ font-size:.9rem; }
+    .description[style*="block"]{ -webkit-line-clamp:3; }
+    .form-label{ font-size:.8rem; }
+  }
+
+  /* ── desktops, large tablets, and landscape phones: two panes, webinar | form ── */
+  @media (min-width:900px), (min-width:600px) and (max-height:520px){
+    .wrap{ max-width:64rem; }
+    #regForm{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.35fr); }
+    .card-top{
+      padding:calc(var(--v) * 3) 2.2rem;
+      display:flex; flex-direction:column; justify-content:center;
+      background:linear-gradient(160deg, rgba(184,134,59,.10), rgba(184,134,59,0) 62%);
+      border-right:1px solid var(--line);
+    }
+    .card-bottom{ padding:calc(var(--v) * 3) 2.2rem; align-self:center; }
+    h1{ font-size:clamp(1.6rem, 2.3vw, 2.4rem); -webkit-line-clamp:5; }
+    .meta{ margin-top:calc(var(--v) * .4); }
+    .meta-row{ font-size:1rem; }
+    .description{ font-size:.95rem; }
+    .description[style*="block"]{ -webkit-line-clamp:6; }
+    .form-label{ font-size:.82rem; }
+  }
+  @media (max-width:359px){
+    .fields{ grid-template-columns:minmax(0,.68fr) minmax(0,1.32fr); }       /* the narrowest phones: the number box needs every pixel */
+  }
+  @media (min-width:600px) and (max-height:520px){
+    .fields{ grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr); }
+    .wordmark{ display:none; }
+    footer{ display:none; }
+    .card-top{ padding:calc(var(--v) * 2) 1.4rem; }
+    .card-bottom{ padding:calc(var(--v) * 2) 1.4rem; }
+    h1{ font-size:clamp(1.15rem, 2.4vw, 1.5rem); -webkit-line-clamp:4; }
+    .description[style*="block"]{ display:none !important; }
+    .fields{ column-gap:.7rem; }
+  }
+  @media (min-width:900px) and (min-height:900px){
+    .card-top, .card-bottom{ padding-top:4rem; padding-bottom:4rem; }
   }
 </style>
 </head>
 <body>
 
-<div style="width:100%;max-width:440px;">
+<div class="wrap">
   <div class="card">
 
     <div id="invalidState" class="invalid">
@@ -268,14 +338,16 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
       </div>
 
       <div class="card-bottom">
-        <label class="form-label" for="name">Full name</label>
-        <input class="field" id="name" required autocomplete="name">
-
-        <label class="form-label" for="email">Email address</label>
-        <input class="field" id="email" type="email" required autocomplete="email">
-
-        <div class="row-2">
-          <div>
+        <div class="fields">
+          <div class="f f-name">
+            <label class="form-label" for="name">Full name</label>
+            <input class="field" id="name" required autocomplete="name">
+          </div>
+          <div class="f f-email">
+            <label class="form-label" for="email">Email address</label>
+            <input class="field" id="email" type="email" required autocomplete="email">
+          </div>
+          <div class="f f-country">
             <label class="form-label" for="country">Country</label>
             <select class="field" id="country">
               <option>UAE</option><option>Saudi Arabia</option><option>Qatar</option>
@@ -285,21 +357,18 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
               <option>Other</option>
             </select>
           </div>
-          <div>
+          <div class="f f-mobile">
             <label class="form-label" for="mobile">Mobile number</label>
             <input class="field" id="mobile" type="tel" inputmode="tel" required autocomplete="tel" value="+971 " placeholder="+971 5x xxx xxxx">
           </div>
-        </div>
-
-        <div class="row-2">
-          <div>
+          <div class="f f-prof">
             <label class="form-label" for="profession">Profession</label>
             <select class="field" id="profession" required>
               <option value="" selected disabled>Select&hellip;</option>
               <option>Salaried</option><option>Retired</option><option>Business</option><option>Others</option>
             </select>
           </div>
-          <div>
+          <div class="f f-inc">
             <label class="form-label" for="income">Monthly family income</label>
             <select class="field" id="income" required>
               <option value="" selected disabled>Select&hellip;</option>
@@ -626,6 +695,12 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
     });
   }
 
+  // Fire-and-forget: tells the server "send the confirmation email now". keepalive lets it finish even if the person leaves the page straight away.
+  // If it never arrives, the server's keep-warm ping (every 5 minutes) and its 30-minute job send the email anyway.
+  function sendEmailNow() {
+    try { fetch(WEB_APP_URL + '?action=flush', { method: 'GET', mode: 'no-cors', credentials: 'omit', keepalive: true }).catch(function () { /* silent */ }); } catch (e) { /* silent */ }
+  }
+
   // ── Registration: unchanged flow (Apps Script saves it, sends the confirmation) ──
   $('regForm').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -650,6 +725,7 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
       country: $('country').value,
       profession: $('profession').value,
       income: $('income').value,
+      flushLater: true,                                    // this page asks for the confirmation email itself (below), so the server need not set up a timer while you wait
       recaptchaToken: await getRecaptchaToken()
     };
 
@@ -681,16 +757,7 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
         $('loginNote').style.display = 'block';
       }
       $('successState').style.display = 'block';
-
-      // Meta Pixel: count only NEW registrations as a Lead (never failed, closed or repeat registrations)
-      try {
-        if (window.fbq && !data.alreadyRegistered) {
-          fbq('track', 'Lead', {
-            content_name: ev.topic || document.title,
-            content_category: eventId
-          });
-        }
-      } catch (px) { /* tracking must never break the success screen */ }
+      sendEmailNow();                                       // "You're registered" is on screen: only now ask for the email to go out
     } catch (err) {
       var msg = err && err.message;
       if (err && err.name === 'AbortError') msg = 'This is taking longer than usual. Please try again — if your registration already went through, we\u2019ll simply re-send your confirmation.';
@@ -704,6 +771,17 @@ src="https://www.facebook.com/tr?id=1329291769160349&ev=PageView&noscript=1"
     }
   });
 })();
+
+  document.getElementById('eventDescription').addEventListener('click', function () { this.classList.toggle('open'); });
+
+  // Repeat visits (and the next webinar's link) open instantly from this phone's cache. Done after the page is up and the device is idle;
+  // skipped on data-saver and very slow connections so it never costs anyone data or speed.
+  window.addEventListener('load', function () {
+    var c = navigator.connection || {};
+    if (!('serviceWorker' in navigator) || c.saveData || /(^|-)2g$/.test(c.effectiveType || '')) return;
+    var go = function () { navigator.serviceWorker.register('sw-register.js', { scope: './register.html' }).catch(function () { /* silent */ }); };
+    if ('requestIdleCallback' in window) requestIdleCallback(go, { timeout: 4000 }); else setTimeout(go, 2500);
+  });
 </script>
 </body>
 </html>
