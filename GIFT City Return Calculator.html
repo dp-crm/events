@@ -79,12 +79,14 @@
   .fxfields.disabled { opacity: 0.4; pointer-events: none; }
   .note { font-size: 11.5px; color: var(--text2); margin-top: 10px; line-height: 1.5; }
 
-  .calcbtn {
-    width: 100%; padding: 16px; border-radius: 12px; border: none; background: var(--navy);
-    color: #fff; font-size: 17px; font-weight: 700; font-family: inherit; cursor: pointer; margin: 4px 0 20px;
-    box-shadow: 0 3px 10px rgba(11,31,58,0.25);
+  .btnrow { display: flex; gap: 10px; margin: 4px 0 20px; }
+  .calcbtn, .comparebtn {
+    flex: 1; padding: 16px; border-radius: 12px; border: none;
+    font-size: 16px; font-weight: 700; font-family: inherit; cursor: pointer;
   }
-  .calcbtn:active { transform: translateY(1px); }
+  .calcbtn { background: var(--navy); color: #fff; box-shadow: 0 3px 10px rgba(11,31,58,0.25); }
+  .comparebtn { background: var(--surface2); color: var(--navy); border: 1.5px solid var(--gold); }
+  .calcbtn:active, .comparebtn:active { transform: translateY(1px); }
 
   .error { background: #FCEAE8; border: 1px solid var(--red); color: var(--red); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; font-weight: 600; margin-bottom: 20px; display: none; }
 
@@ -102,17 +104,19 @@
   .bstat { background: #F3F6FA; border-radius: 10px; padding: 11px 12px; }
   .bstat .v { font-family: Cambria, Georgia, serif; font-weight: 700; font-size: 16px; color: #16335C; }
   .bstat .k { font-size: 10.5px; color: #5A6B82; margin-top: 2px; }
-  .cagrcheck { font-size: 11px; color: #5A6B82; margin-top: 12px; line-height: 1.5; font-style: italic; }
 
-  .yearwrap { margin-top: 18px; }
-  .yeartitle { font-size: 12px; font-weight: 700; color: #5A6B82; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-  .yearscroll { overflow-x: auto; border-radius: 10px; border: 1px solid #E1E7EE; }
-  table.yeartable { width: 100%; border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
-  table.yeartable th, table.yeartable td { padding: 8px 10px; text-align: right; border-bottom: 1px solid #EEF2F7; }
-  table.yeartable th:first-child, table.yeartable td:first-child { text-align: left; }
-  table.yeartable th { background: #0B1F3A; color: #fff; font-weight: 700; position: sticky; top: 0; }
-  table.yeartable tr:last-child td { border-bottom: none; font-weight: 700; color: #0E7C66; background: #F3F6FA; }
-  table.yeartable td { color: #16335C; }
+  .compare { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-top: 16px; }
+  .compare.show { display: block; }
+  .comparetitle { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 14px; }
+  .comparegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .comparecol { border-radius: 10px; padding: 14px 12px; text-align: center; }
+  .comparecol.gift { background: var(--surface2); border: 1.5px solid var(--green); }
+  .comparecol.domestic { background: var(--surface2); border: 1.5px solid var(--text2); }
+  .comparecol .ck { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); }
+  .comparecol .cv { font-family: Cambria, Georgia, serif; font-weight: 700; font-size: 21px; color: var(--navy); margin: 6px 0 4px; }
+  .comparecol .cs { font-size: 10px; color: var(--text2); line-height: 1.4; }
+  .comparedelta { text-align: center; font-weight: 700; font-size: 14px; margin-top: 12px; color: var(--green); }
+  .comparenote { font-size: 11px; color: var(--text2); margin-top: 10px; line-height: 1.5; }
 
   .foot { font-size: 11px; color: var(--text2); margin-top: 20px; line-height: 1.5; }
   .g { color: #0E7C66; } .r { color: #B23A2E; }
@@ -170,7 +174,10 @@
     <div class="note" id="fxNote">Your USD converts to ₹95 at entry. It grows in rupees at the India return, then converts back to dollars at the depreciated rate projected for your target year.</div>
   </div>
 
-  <button type="button" class="calcbtn" id="calcBtn">Calculate</button>
+  <div class="btnrow">
+    <button type="button" class="calcbtn" id="calcBtn">Calculate</button>
+    <button type="button" class="comparebtn" id="compareBtn">Compare</button>
+  </div>
 
   <div class="error" id="errorBox"></div>
 
@@ -187,15 +194,25 @@
         <div class="bstat" id="bFxWrap"><div class="v" id="bFx">—</div><div class="k">FX impact</div></div>
         <div class="bstat"><div class="v" id="bYears">—</div><div class="k">Years invested</div></div>
       </div>
-      <div class="cagrcheck" id="cagrCheck"></div>
     </div>
+  </div>
 
-    <div class="yearwrap">
-      <div class="yeartitle">Year by year</div>
-      <div class="yearscroll">
-        <table class="yeartable" id="yearTable"></table>
+  <div class="compare" id="compareWrap">
+    <div class="comparetitle">GIFT City vs. a direct, taxable India investment</div>
+    <div class="comparegrid">
+      <div class="comparecol gift">
+        <div class="ck">GIFT City (Inbound)</div>
+        <div class="cv" id="cmpGift">$0</div>
+        <div class="cs">Tax-free for NRIs &middot; FX depreciation applies</div>
+      </div>
+      <div class="comparecol domestic">
+        <div class="ck">Direct India investment</div>
+        <div class="cv" id="cmpDomestic">$0</div>
+        <div class="cs">12.5% LTCG tax on gains &middot; same target-year FX rate</div>
       </div>
     </div>
+    <div class="comparedelta" id="cmpDelta"></div>
+    <div class="comparenote">Both columns use the same rupee principal, same return, and the same projected target-year ₹/USD rate for the final conversion — so the only difference between them is the 12.5% tax on gains that the direct route pays and GIFT City doesn't.</div>
   </div>
 
   <div class="foot">
@@ -226,6 +243,7 @@
       ? 'Your USD converts to ₹95 at entry. It grows in rupees at the India return, then converts back to dollars at the depreciated rate projected for your target year.'
       : 'Outbound funds invest directly in USD-denominated global assets — your money never converts back to rupees, so rupee depreciation does not affect this projection.';
     $('resultWrap').classList.remove('show');
+    $('compareWrap').classList.remove('show');
     $('errorBox').style.display = 'none';
   }
 
@@ -274,33 +292,6 @@
       for (let k = 1; k <= t; k++) usd += amt * Math.pow(1 + ret / 100, t - k);
       return usd;
     }
-  }
-
-  function renderYearTable(fundType, amt, ret, depr, recurring, years) {
-    const rows = [];
-    for (let t = 0; t <= years; t++) {
-      const corpus = corpusAtT(fundType, amt, ret, depr, recurring, t);
-      const year = BASE_YEAR + t;
-      if (fundType === 'inbound') {
-        const rate = REF_RATE * Math.pow(1 + depr / 100, t);
-        const usdAtRate = (t === 0 && !recurring) ? amt : corpus / rate;
-        rows.push({ year, rate, corpus, usd: usdAtRate });
-      } else {
-        rows.push({ year, usd: corpus });
-      }
-    }
-    let html = '<thead><tr><th>Year</th>';
-    if (fundType === 'inbound') html += '<th>₹/USD</th><th>₹ corpus</th>';
-    html += '<th>USD value</th></tr></thead><tbody>';
-    rows.forEach(r => {
-      html += '<tr><td>' + r.year + '</td>';
-      if (fundType === 'inbound') {
-        html += '<td>₹' + r.rate.toFixed(2) + '</td><td>₹' + Math.round(r.corpus).toLocaleString('en-IN') + '</td>';
-      }
-      html += '<td>' + fmtUsd(Math.round(r.usd)) + '</td></tr>';
-    });
-    html += '</tbody>';
-    $('yearTable').innerHTML = html;
   }
 
   function calculate() {
@@ -362,23 +353,79 @@
     $('bGrowth').textContent = (growth >= 0 ? '+' : '') + fmtUsd(Math.round(growth));
     $('bAbs').textContent = (absReturn >= 0 ? '+' : '') + absReturn.toFixed(2) + '%';
     $('bCagr').textContent = (cagr >= 0 ? '+' : '') + cagr.toFixed(2) + '%';
-    $('cagrCheck').textContent = fundType === 'inbound'
-      ? 'Check: (1 + ' + ret + '% \u00F7 1 + ' + depr + '%) \u2212 1 = ' + cagr.toFixed(2) + '% \u2014 same for lumpsum or recurring, since every dollar compounds at this rate regardless of when it\u2019s invested.'
-      : 'Outbound has no FX round-trip, so USD CAGR always equals your entered return \u2014 here, ' + cagr.toFixed(2) + '%.';
     $('bFxWrap').style.visibility = fundType === 'inbound' ? 'visible' : 'hidden';
     $('bFx').textContent = fundType === 'inbound' ? (fxImpact >= 0 ? '+' : '') + fmtUsd(Math.round(fxImpact)) : '—';
     $('bYears').textContent = years;
 
-    renderYearTable(fundType, amt, ret, depr, recurring, years);
-
     $('resultWrap').classList.add('show');
+    $('compareWrap').classList.remove('show');
     $('resultWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  const TAX_RATE = 12.5; // LTCG on equity gains, direct domestic India investment
+
+  function compare() {
+    const amt = parseFloat($('amt').value);
+    const ret = parseFloat($('ret').value);
+    const year = parseInt($('year').value, 10);
+    const recurring = $('recurring').checked;
+
+    if (!amt || amt <= 0) { showError('Enter an investment amount greater than 0.'); return; }
+    if (!year || isNaN(year)) { showError('Enter a target year.'); return; }
+    const years = year - BASE_YEAR;
+    if (years <= 0) { showError('Target year must be after ' + BASE_YEAR + '.'); return; }
+    if (isNaN(ret)) { showError('Enter an expected annual return.'); return; }
+
+    if (fundType !== 'inbound') {
+      showError('Comparison is for Inbound investments — switch to Inbound to compare against a direct, taxable domestic India investment.');
+      return;
+    }
+    const depr = parseFloat($('depr').value);
+    if (isNaN(depr)) { showError('Enter the rupee depreciation rate.'); return; }
+
+    $('errorBox').style.display = 'none';
+
+    // GIFT City (Inbound): tax-free for NRIs, FX depreciation applies at redemption.
+    const giftInrFinal = corpusAtT('inbound', amt, ret, depr, recurring, years);
+    const targetRate = REF_RATE * Math.pow(1 + depr / 100, years);
+    const giftUsd = giftInrFinal / targetRate;
+
+    // Direct domestic India investment: the rupee principal and growth are computed the same way,
+    // with no FX movement DURING the holding period, then the GAIN is taxed at 12.5% (LTCG on
+    // equity). The after-tax corpus converts back to USD at the SAME projected rate for the target
+    // year as GIFT City uses — because money coming out of India faces that real-world rate either
+    // way. That makes the only difference between the two columns the tax, not two different FX rates.
+    let domInrFinal = 0, domPrincipal = 0;
+    if (!recurring) {
+      domPrincipal = amt * REF_RATE;
+      domInrFinal = domPrincipal * Math.pow(1 + ret / 100, years);
+    } else {
+      domPrincipal = amt * years * REF_RATE;
+      for (let k = 1; k <= years; k++) domInrFinal += (amt * REF_RATE) * Math.pow(1 + ret / 100, years - k);
+    }
+    const domGain = Math.max(0, domInrFinal - domPrincipal);
+    const domTax = domGain * (TAX_RATE / 100);
+    const domAfterTaxInr = domInrFinal - domTax;
+    const domUsd = domAfterTaxInr / targetRate;
+
+    $('cmpGift').textContent = fmtUsd(Math.round(giftUsd));
+    $('cmpDomestic').textContent = fmtUsd(Math.round(domUsd));
+    const delta = giftUsd - domUsd;
+    const deltaPct = domUsd > 0 ? (delta / domUsd) * 100 : 0;
+    $('cmpDelta').innerHTML = (delta >= 0
+      ? 'GIFT City ahead by <span class="g">' + fmtUsd(Math.round(delta)) + ' (+' + deltaPct.toFixed(1) + '%)</span>'
+      : 'Direct route ahead by <span class="r">' + fmtUsd(Math.round(-delta)) + ' (' + deltaPct.toFixed(1) + '%)</span>')
+      + ' &middot; tax paid on direct route: ' + fmtUsd(Math.round(domTax / targetRate));
+
+    $('compareWrap').classList.add('show');
+    $('compareWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   $('btnInbound').addEventListener('click', () => setType('inbound'));
   $('btnOutbound').addEventListener('click', () => setType('outbound'));
   $('recurring').addEventListener('change', updateAmtLabel);
   $('calcBtn').addEventListener('click', calculate);
+  $('compareBtn').addEventListener('click', compare);
   $('depr').addEventListener('input', updateProjectedRate);
   $('year').addEventListener('input', updateProjectedRate);
 
