@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GIFT City Return Calculator — Wealth Matrix</title>
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --surface: #F3F6FA;
+    --surface2: #EAF0F7;
+    --text: #0B1F3A;
+    --text2: #5A6B82;
+    --navy: #0B1F3A;
+    --navy2: #16335C;
+    --green: #0E7C66;
+    --gold: #B9821F;
+    --red: #B23A2E;
+    --border: #DCE4EE;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B1220; --surface: #121B2E; --surface2: #17233A; --text: #EAF0F7; --text2: #9FB0C6;
+      --navy: #DCE6F5; --navy2: #AFC3E0; --green: #35C79A; --gold: #E8B84B; --red: #FF7A68; --border: #26344D;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0B1220; --surface: #121B2E; --surface2: #17233A; --text: #EAF0F7; --text2: #9FB0C6;
+    --navy: #DCE6F5; --navy2: #AFC3E0; --green: #35C79A; --gold: #E8B84B; --red: #FF7A68; --border: #26344D;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0;
+    font-family: Calibri, "Segoe UI", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 24px 18px 48px; }
+  .eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: 2px; color: var(--gold); text-transform: uppercase; }
+  h1 { font-family: Cambria, Georgia, serif; font-size: 25px; margin: 6px 0 4px; color: var(--navy); line-height: 1.2; }
+  .sub { color: var(--text2); font-size: 13.5px; margin-bottom: 20px; line-height: 1.4; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); margin: 0 0 14px; font-weight: 700; }
+
+  .typebar { display: flex; gap: 8px; margin-bottom: 16px; }
+  .typebtn {
+    flex: 1; padding: 13px 8px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface);
+    color: var(--text2); font-weight: 700; font-size: 13.5px; cursor: pointer; text-align: center; font-family: inherit;
+  }
+  .typebtn.active.inbound { border-color: var(--green); color: var(--green); background: var(--surface2); }
+  .typebtn.active.outbound { border-color: var(--gold); color: var(--gold); background: var(--surface2); }
+
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  label { display: block; font-size: 12px; font-weight: 700; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  input[type=number] {
+    width: 100%; padding: 13px 12px; border-radius: 9px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 17px; font-family: inherit; appearance: none;
+  }
+  input:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+
+  .maskedrow {
+    display: flex; align-items: center; justify-content: space-between; padding: 12px 14px;
+    background: var(--surface2); border: 1px dashed var(--border); border-radius: 9px; font-size: 14.5px;
+  }
+  .maskedrow .k { color: var(--text2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+  .maskedrow .v { font-weight: 700; color: var(--navy); font-family: Cambria, Georgia, serif; font-size: 16px; }
+
+  .checkrow { display: flex; align-items: center; gap: 10px; padding: 2px 0 14px; }
+  .checkrow input[type=checkbox] { width: 21px; height: 21px; accent-color: var(--green); cursor: pointer; flex-shrink: 0; }
+  .checkrow label { margin: 0; font-size: 14px; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text); cursor: pointer; }
+
+  .fxfields.disabled { opacity: 0.4; pointer-events: none; }
+  .note { font-size: 11.5px; color: var(--text2); margin-top: 10px; line-height: 1.5; }
+
+  .calcbtn {
+    width: 100%; padding: 16px; border-radius: 12px; border: none; background: var(--navy);
+    color: #fff; font-size: 17px; font-weight: 700; font-family: inherit; cursor: pointer; margin: 4px 0 20px;
+    box-shadow: 0 3px 10px rgba(11,31,58,0.25);
+  }
+  .calcbtn:active { transform: translateY(1px); }
+
+  .error { background: #FCEAE8; border: 1px solid var(--red); color: var(--red); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; font-weight: 600; margin-bottom: 20px; display: none; }
+
+  /* Final value — fixed white background, always visible regardless of light/dark mode */
+  .result { display: none; }
+  .result.show { display: block; }
+  .result-card {
+    background: #FFFFFF; color: #0B1F3A; border-radius: 16px; padding: 24px 20px;
+    border: 2px solid #D9A441; box-shadow: 0 4px 18px rgba(11,31,58,0.15);
+  }
+  .result-card .lbl { font-size: 12.5px; font-weight: 700; color: #5A6B82; text-transform: uppercase; letter-spacing: 1px; }
+  .result-card .big { font-family: Cambria, Georgia, serif; font-weight: 700; font-size: 38px; color: #0B1F3A; margin: 6px 0 2px; }
+  .result-card .cagr { font-size: 13.5px; color: #0E7C66; font-weight: 700; }
+  .breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .bstat { background: #F3F6FA; border-radius: 10px; padding: 11px 12px; }
+  .bstat .v { font-family: Cambria, Georgia, serif; font-weight: 700; font-size: 16px; color: #16335C; }
+  .bstat .k { font-size: 10.5px; color: #5A6B82; margin-top: 2px; }
+  .cagrcheck { font-size: 11px; color: #5A6B82; margin-top: 12px; line-height: 1.5; font-style: italic; }
+
+  .yearwrap { margin-top: 18px; }
+  .yeartitle { font-size: 12px; font-weight: 700; color: #5A6B82; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .yearscroll { overflow-x: auto; border-radius: 10px; border: 1px solid #E1E7EE; }
+  table.yeartable { width: 100%; border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
+  table.yeartable th, table.yeartable td { padding: 8px 10px; text-align: right; border-bottom: 1px solid #EEF2F7; }
+  table.yeartable th:first-child, table.yeartable td:first-child { text-align: left; }
+  table.yeartable th { background: #0B1F3A; color: #fff; font-weight: 700; position: sticky; top: 0; }
+  table.yeartable tr:last-child td { border-bottom: none; font-weight: 700; color: #0E7C66; background: #F3F6FA; }
+  table.yeartable td { color: #16335C; }
+
+  .foot { font-size: 11px; color: var(--text2); margin-top: 20px; line-height: 1.5; }
+  .g { color: #0E7C66; } .r { color: #B23A2E; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Wealth Matrix &middot; GIFT City Webinar</div>
+  <h1>GIFT City Return Calculator</h1>
+  <div class="sub">Enter your numbers and tap Calculate to see the projected return in US Dollars.</div>
+
+  <div class="typebar">
+    <button type="button" class="typebtn inbound active" id="btnInbound">Inbound (into India)</button>
+    <button type="button" class="typebtn outbound" id="btnOutbound">Outbound (global)</button>
+  </div>
+
+  <div class="panel">
+    <h2>Investment</h2>
+    <div class="checkrow">
+      <input type="checkbox" id="recurring">
+      <label for="recurring">Yearly recurring investment (instead of a one-time lumpsum)</label>
+    </div>
+    <div class="field">
+      <label id="amtLabel" for="amt">Lumpsum investment (USD)</label>
+      <input id="amt" type="number" inputmode="decimal" value="10000" min="0" step="100">
+    </div>
+    <div class="field">
+      <label for="year">Target year</label>
+      <input id="year" type="number" inputmode="numeric" value="2031" min="2027" step="1">
+    </div>
+    <div class="field">
+      <label id="retLabel" for="ret">Expected annual return — in INR terms (%)</label>
+      <input id="ret" type="number" inputmode="decimal" value="12" step="0.1">
+    </div>
+  </div>
+
+  <div class="panel fxfields" id="fxPanel">
+    <h2>Rupee / Dollar assumptions (Inbound only)</h2>
+    <div class="field">
+      <div class="maskedrow">
+        <span class="k">Reference rate</span>
+        <span class="v">₹95.00 / USD (2026)</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="depr">Rupee depreciation (% per year)</label>
+      <input id="depr" type="number" inputmode="decimal" value="2.70" step="0.05">
+    </div>
+    <div class="field">
+      <div class="maskedrow">
+        <span class="k" id="projRateLbl">Projected rate, 2031</span>
+        <span class="v" id="projRate">₹—</span>
+      </div>
+    </div>
+    <div class="note" id="fxNote">Your USD converts to ₹95 at entry. It grows in rupees at the India return, then converts back to dollars at the depreciated rate projected for your target year.</div>
+  </div>
+
+  <button type="button" class="calcbtn" id="calcBtn">Calculate</button>
+
+  <div class="error" id="errorBox"></div>
+
+  <div class="result" id="resultWrap">
+    <div class="result-card">
+      <div class="lbl" id="resultLbl">Projected value</div>
+      <div class="big" id="finalUsd">$0</div>
+      <div class="cagr" id="cagrLine"></div>
+      <div class="breakdown">
+        <div class="bstat"><div class="v" id="bInvested">—</div><div class="k">Total invested</div></div>
+        <div class="bstat"><div class="v" id="bGrowth">—</div><div class="k">Growth</div></div>
+        <div class="bstat"><div class="v" id="bAbs">—</div><div class="k">Absolute return</div></div>
+        <div class="bstat"><div class="v" id="bCagr">—</div><div class="k">Compounded annual (CAGR)</div></div>
+        <div class="bstat" id="bFxWrap"><div class="v" id="bFx">—</div><div class="k">FX impact</div></div>
+        <div class="bstat"><div class="v" id="bYears">—</div><div class="k">Years invested</div></div>
+      </div>
+      <div class="cagrcheck" id="cagrCheck"></div>
+    </div>
+
+    <div class="yearwrap">
+      <div class="yeartitle">Year by year</div>
+      <div class="yearscroll">
+        <table class="yeartable" id="yearTable"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    Reference rate: ₹95/USD, 2026. Illustrative only — not a forecast or investment advice. Actual fund returns, exchange rates and fund-level costs will differ. Consult your Personal Finance Professional (PFP) before taking a decision.
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const BASE_YEAR = 2026;
+  const REF_RATE = 95;
+  let fundType = 'inbound';
+
+  function fmtUsd(n) {
+    const sign = n < 0 ? '-' : '';
+    return sign + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+
+  function setType(t) {
+    fundType = t;
+    $('btnInbound').classList.toggle('active', t === 'inbound');
+    $('btnOutbound').classList.toggle('active', t === 'outbound');
+    $('fxPanel').classList.toggle('disabled', t === 'outbound');
+    $('retLabel').textContent = t === 'inbound'
+      ? 'Expected annual return — in INR terms (%)'
+      : 'Expected annual return — in USD terms (%)';
+    $('fxNote').textContent = t === 'inbound'
+      ? 'Your USD converts to ₹95 at entry. It grows in rupees at the India return, then converts back to dollars at the depreciated rate projected for your target year.'
+      : 'Outbound funds invest directly in USD-denominated global assets — your money never converts back to rupees, so rupee depreciation does not affect this projection.';
+    $('resultWrap').classList.remove('show');
+    $('errorBox').style.display = 'none';
+  }
+
+  function updateAmtLabel() {
+    $('amtLabel').textContent = $('recurring').checked ? 'Annual investment (USD, per year)' : 'Lumpsum investment (USD)';
+  }
+
+  function updateProjectedRate() {
+    const year = parseInt($('year').value, 10);
+    const depr = parseFloat($('depr').value);
+    const years = year - BASE_YEAR;
+    if (isNaN(year) || isNaN(depr) || years <= 0) {
+      $('projRateLbl').textContent = 'Projected rate';
+      $('projRate').textContent = '₹—';
+      return;
+    }
+    const rate = REF_RATE * Math.pow(1 + depr / 100, years);
+    $('projRateLbl').textContent = 'Projected rate, ' + year;
+    $('projRate').textContent = '₹' + rate.toFixed(2) + ' / USD';
+  }
+
+  function showError(msg) {
+    $('errorBox').textContent = msg;
+    $('errorBox').style.display = 'block';
+    $('resultWrap').classList.remove('show');
+  }
+
+  // INR (or USD, for outbound) corpus compounded as of year offset t (0 = base year), given
+  // contributions already made up to t. Used both for the final totals and the year-by-year table.
+  function corpusAtT(fundType, amt, ret, depr, recurring, t) {
+    if (fundType === 'inbound') {
+      if (!recurring) {
+        const startInr = amt * REF_RATE;
+        return startInr * Math.pow(1 + ret / 100, t);
+      }
+      let inr = 0;
+      for (let k = 1; k <= t; k++) {
+        const rateAtK = REF_RATE * Math.pow(1 + depr / 100, k);
+        const inrAtK = amt * rateAtK;
+        inr += inrAtK * Math.pow(1 + ret / 100, t - k); // contribution made at END of year k
+      }
+      return inr;
+    } else {
+      if (!recurring) return amt * Math.pow(1 + ret / 100, t);
+      let usd = 0;
+      for (let k = 1; k <= t; k++) usd += amt * Math.pow(1 + ret / 100, t - k);
+      return usd;
+    }
+  }
+
+  function renderYearTable(fundType, amt, ret, depr, recurring, years) {
+    const rows = [];
+    for (let t = 0; t <= years; t++) {
+      const corpus = corpusAtT(fundType, amt, ret, depr, recurring, t);
+      const year = BASE_YEAR + t;
+      if (fundType === 'inbound') {
+        const rate = REF_RATE * Math.pow(1 + depr / 100, t);
+        const usdAtRate = (t === 0 && !recurring) ? amt : corpus / rate;
+        rows.push({ year, rate, corpus, usd: usdAtRate });
+      } else {
+        rows.push({ year, usd: corpus });
+      }
+    }
+    let html = '<thead><tr><th>Year</th>';
+    if (fundType === 'inbound') html += '<th>₹/USD</th><th>₹ corpus</th>';
+    html += '<th>USD value</th></tr></thead><tbody>';
+    rows.forEach(r => {
+      html += '<tr><td>' + r.year + '</td>';
+      if (fundType === 'inbound') {
+        html += '<td>₹' + r.rate.toFixed(2) + '</td><td>₹' + Math.round(r.corpus).toLocaleString('en-IN') + '</td>';
+      }
+      html += '<td>' + fmtUsd(Math.round(r.usd)) + '</td></tr>';
+    });
+    html += '</tbody>';
+    $('yearTable').innerHTML = html;
+  }
+
+  function calculate() {
+    const amt = parseFloat($('amt').value);
+    const ret = parseFloat($('ret').value);
+    const year = parseInt($('year').value, 10);
+    const depr = parseFloat($('depr').value);
+    const recurring = $('recurring').checked;
+
+    if (!amt || amt <= 0) { showError('Enter an investment amount greater than 0.'); return; }
+    if (!year || isNaN(year)) { showError('Enter a target year.'); return; }
+    const years = year - BASE_YEAR;
+    if (years <= 0) { showError('Target year must be after ' + BASE_YEAR + '.'); return; }
+    if (isNaN(ret)) { showError('Enter an expected annual return.'); return; }
+    if (fundType === 'inbound' && isNaN(depr)) { showError('Enter the rupee depreciation rate.'); return; }
+
+    $('errorBox').style.display = 'none';
+
+    let finalUsd, totalInvested, finalUsdNoFx;
+    const targetRate = REF_RATE * Math.pow(1 + depr / 100, years);
+
+    if (fundType === 'inbound') {
+      const finalInr = corpusAtT('inbound', amt, ret, depr, recurring, years);
+      let finalInrNoFx = 0;
+      if (!recurring) {
+        finalInrNoFx = (amt * REF_RATE) * Math.pow(1 + ret / 100, years);
+      } else {
+        for (let k = 1; k <= years; k++) finalInrNoFx += (amt * REF_RATE) * Math.pow(1 + ret / 100, years - k);
+      }
+      totalInvested = recurring ? amt * years : amt;
+      finalUsd = finalInr / targetRate;
+      finalUsdNoFx = finalInrNoFx / REF_RATE;
+    } else {
+      totalInvested = recurring ? amt * years : amt;
+      finalUsd = corpusAtT('outbound', amt, ret, depr, recurring, years);
+      finalUsdNoFx = finalUsd;
+    }
+
+    const growth = finalUsd - totalInvested;
+    const absReturn = totalInvested > 0 ? (growth / totalInvested) * 100 : 0;
+    const fxImpact = finalUsd - finalUsdNoFx;
+
+    // Annualized (per-dollar) USD CAGR — NOT (final/invested)^(1/years)-1. That naive formula is only
+    // valid for a lumpsum: for a recurring investment it understates the true rate, because it divides
+    // by the full holding period even though later contributions were invested for less time.
+    // Since the return and depreciation rates here are flat every year, every rupee/dollar invested —
+    // whenever it went in — compounds at the SAME annualized rate, in closed form:
+    //   Inbound:  (1 + INR return) / (1 + rupee depreciation) − 1
+    //   Outbound: the entered return itself (no FX round-trip to dilute it)
+    // This is verified to match the true money-weighted return (XIRR) exactly, for both lumpsum and recurring.
+    const cagr = fundType === 'inbound' ? ((1 + ret / 100) / (1 + depr / 100) - 1) * 100 : ret;
+
+    $('resultLbl').textContent = 'Projected value in ' + year;
+    $('finalUsd').textContent = fmtUsd(Math.round(finalUsd));
+    const cls = growth >= 0 ? 'g' : 'r';
+    $('cagrLine').innerHTML = 'Effective USD CAGR: <span class="' + cls + '">' + (cagr >= 0 ? '+' : '') + cagr.toFixed(2) + '%</span> over ' + years + ' year' + (years > 1 ? 's' : '');
+
+    $('bInvested').textContent = fmtUsd(Math.round(totalInvested));
+    $('bGrowth').textContent = (growth >= 0 ? '+' : '') + fmtUsd(Math.round(growth));
+    $('bAbs').textContent = (absReturn >= 0 ? '+' : '') + absReturn.toFixed(2) + '%';
+    $('bCagr').textContent = (cagr >= 0 ? '+' : '') + cagr.toFixed(2) + '%';
+    $('cagrCheck').textContent = fundType === 'inbound'
+      ? 'Check: (1 + ' + ret + '% \u00F7 1 + ' + depr + '%) \u2212 1 = ' + cagr.toFixed(2) + '% \u2014 same for lumpsum or recurring, since every dollar compounds at this rate regardless of when it\u2019s invested.'
+      : 'Outbound has no FX round-trip, so USD CAGR always equals your entered return \u2014 here, ' + cagr.toFixed(2) + '%.';
+    $('bFxWrap').style.visibility = fundType === 'inbound' ? 'visible' : 'hidden';
+    $('bFx').textContent = fundType === 'inbound' ? (fxImpact >= 0 ? '+' : '') + fmtUsd(Math.round(fxImpact)) : '—';
+    $('bYears').textContent = years;
+
+    renderYearTable(fundType, amt, ret, depr, recurring, years);
+
+    $('resultWrap').classList.add('show');
+    $('resultWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  $('btnInbound').addEventListener('click', () => setType('inbound'));
+  $('btnOutbound').addEventListener('click', () => setType('outbound'));
+  $('recurring').addEventListener('change', updateAmtLabel);
+  $('calcBtn').addEventListener('click', calculate);
+  $('depr').addEventListener('input', updateProjectedRate);
+  $('year').addEventListener('input', updateProjectedRate);
+
+  setType('inbound');
+  updateAmtLabel();
+  updateProjectedRate();
+</script>
+</body>
+</html>
