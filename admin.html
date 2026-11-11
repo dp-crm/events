@@ -334,6 +334,24 @@
   .seg-chip.on{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
   .tag-att{ font-size:.74rem; border-radius:999px; padding:1px 8px; display:inline-block; margin-top:3px; margin-right:4px; border:1px solid var(--line); color:var(--ink-soft); }
   .tag-att.yes{ color:#1E7B4A; border-color:#1E7B4A; }
+  .wa-counter{ font-size:.78rem; color:var(--ink-soft); margin:0 0 10px; padding:6px 10px; border:1px solid var(--line); border-radius:10px; }
+  .wa-counter.near{ color:#8A5A00; border-color:#C98A00; }
+  .wa-counter.full{ color:#B0402F; border-color:#B0402F; font-weight:600; }
+  .mark-row{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .mark-chip{ border:1px solid var(--line); border-radius:999px; padding:6px 12px; font:inherit; font-size:.8rem; background:transparent; color:var(--ink-soft); cursor:pointer; min-height:34px; }
+  .mark-chip.on.yes{ background:#1E7B4A; border-color:#1E7B4A; color:#fff; }
+  .mark-chip.on.no{ background:#B0402F; border-color:#B0402F; color:#fff; }
+  .mark-chip:disabled{ opacity:.55; cursor:default; }
+  .mark-chip{ white-space:nowrap; }
+  /* On a phone the five icons would squeeze the name and email into a thin column: they move to their own line under the details instead. */
+  @media (max-width:560px){
+    .attendee-row{ flex-wrap:wrap; }
+    .attendee-row .who{ flex:1 1 100%; }
+    .attendee-row .actions{ flex:1 1 100%; margin-top:12px; }
+  }
+  .round-btn.crm{ color:var(--btn-blue,#2557D6); border-color:rgba(37,87,214,.35); }
+  .round-btn.crm.done{ color:#1E7B4A; border-color:#1E7B4A; }
+  .round-btn.crm.busy{ opacity:.5; pointer-events:none; }
   .tag-att.no{ color:#B5651D; border-color:#B5651D; }
   .grp-sum{ font-size:.84rem; color:var(--ink-soft); margin:6px 0 10px; line-height:1.5; }
   textarea.field.tall{ min-height:190px; }
@@ -561,6 +579,7 @@
     <div id="funnelCard" class="visit-card hidden"></div>
     <div id="callCard" class="visit-card hidden"></div>
     <div id="remindStrip" class="banner remind-banner hidden" role="status" style="cursor:default;"></div>
+    <div id="waCounter" class="wa-counter" role="status"></div>
     <div class="attendees-head">
       <div class="section-label" id="attendeesLabel">Registered</div>
       <button class="ghost-btn small hidden" id="exportBtn" aria-label="Export every column of this webinar's registered participants to Excel">
@@ -605,7 +624,7 @@
         <h3 class="aud-h">Profession</h3>
         <div class="chart-wrap aud-chart"><canvas id="profChart"></canvas></div>
         <div class="aud-legend" id="profLegend"></div>
-        <h3 class="aud-h">Monthly family income</h3>
+        <h3 class="aud-h">Annual income (INR)</h3>
         <div class="chart-wrap aud-chart"><canvas id="incChart"></canvas></div>
         <div class="aud-legend" id="incLegend"></div>
       </div>
@@ -985,7 +1004,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '6.5';
+  const APP_VERSION = '6.8';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -1633,6 +1652,7 @@
   }
 
   const ICONS = {
+    crm: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>',
     call: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>',
     map: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
     pic: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/></svg>',
@@ -1641,7 +1661,7 @@
   };
   function actionLink(kind, href, label, external){
     const a = document.createElement('a');
-    a.className = 'round-btn' + (kind === 'call' ? ' call' : kind === 'wa' ? ' wa' : '');
+    a.className = 'round-btn' + (kind === 'call' ? ' call' : kind === 'wa' ? ' wa' : kind === 'crm' ? ' crm' : '');
     a.href = href;
     a.title = label;
     a.setAttribute('aria-label', label);
@@ -1716,8 +1736,18 @@
       ? head + 'Thank you for joining the webinar on ' + topic + '. We hope it was useful.\n\n' + (pdfInfo[ev.id] ? 'Here is the one-page summary of what we covered, with the next step:\n' + pdfInfo[ev.id].url + '\n\n' : '') + 'We would value your feedback \u2014 it takes a minute:\n' + feedbackUrl(ev, a) + '\n\nIf you would like to discuss how this applies to your own plans, just reply here and we will arrange a convenient time.' + sign
       : head + 'Missed the webinar? We understand that you were busy. Feel free to connect with me.\n\nAny upcoming webinars will be shared with you so that you can participate.\n\nThanks for showing interest.' + sign;
   }
+  /** "neha rao" / "NEHA RAO" / "Neha Rao" → "Neha": the first name, the way a person would type it. A mixed-case word (McDonald) is left as it is. */
+  function chatName(a){
+    const w = String((a && a.name) || '').trim().split(/\s+/)[0] || '';
+    if (!w) return 'there';
+    return w === w.toUpperCase() || w === w.toLowerCase() ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w;
+  }
   function reminderDraft(a, ev, stage){
     if (stage === 'thx' || stage === 'miss') return followDraft(a, ev, stage);
+    // "1 day to go" and "morning of the day" are short, plain, human-typed texts: first name only, no heading, no link, nothing else.
+    if (stage === '1d') return 'Hi ' + chatName(a) + ',\nWebinar is on tomorrow. Will you be able to attend? Please confirm.\n' + ORGANISER_NAME;
+    if (stage === '1h') return 'Hi ' + chatName(a) + ',\nThe webinar starts in 1 hour.' + (ev.meetingLink ? ' Please join using this link:\n' + ev.meetingLink : '') + '\n' + ORGANISER_NAME;
+    if (stage === 'am') return 'Hi ' + chatName(a) + ', Good morning,\nWebinar on ' + String(ev.topic).replace(/\*/g, '') + ' happening today. Hope you have blocked the time. Will see you there.\n' + ORGANISER_NAME + '\n' + (typeof FIRM_NAME === 'string' && FIRM_NAME ? FIRM_NAME : 'Wealth Matrix');
     const name = a.name || 'Participant';
     if (!stage) {
       return 'Dear ' + name + '\n\n' +
@@ -1725,19 +1755,14 @@
         (ev.meetingLink ? 'You can click this link and join the webinar: ' + ev.meetingLink + '\n\n' + LOGIN_NOTE + '\n\n' : '') +
         'Regards\n' + ORGANISER_NAME;
     }
-    const full = participantTimeText(ev, a.country), clock = full.slice(full.indexOf(' at ') + 4);        // "Saturday, 17 October 2026 at 8:00 PM UAE time (9:30 PM IST)" → "8:00 PM UAE time (9:30 PM IST)"
+    const full = participantTimeText(ev, a.country);
     const topic = '*' + String(ev.topic).replace(/\*/g, '') + '*', link = ev.meetingLink || '', sign = 'Regards\n' + ORGANISER_NAME;
     const top = '*' + STAGE_HEAD(stage) + '*\n\nDear ' + name + ',\n\n';
     const withLink = (label) => link ? label + link + '\n\n' + LOGIN_NOTE + '\n\n' : '';
-    const calBlock = (() => { const c = calLinks(ev); return 'Add to calendar:\nGoogle: ' + c.google + '\nApple / Outlook: ' + c.ics + '\n\n'; })();      // only used by the 7-day, 3-day and 1-day messages
+    const calBlock = (() => { const c = calLinks(ev); return 'Add to calendar:\nGoogle: ' + c.google + '\nApple / Outlook: ' + c.ics + '\n\n'; })();      // only used by the 5-day message
     let body;
     switch (stage) {
-      case '7d': body = 'Please save the date. Our webinar on ' + topic + ' is on ' + full + '. It is a ' + durationWord(ev.durationMinutes) + ' session, and we will keep time for your questions at the end.\n\n' + withLink('Joining link: ') + calBlock + sign; break;
-      case '3d': body = 'A gentle reminder that the webinar on ' + topic + ' is on ' + full + '. If there is a question you would like us to cover, just reply here.\n\n' + withLink('Joining link: ') + calBlock + sign; break;
-      case '1d': body = 'The webinar on ' + topic + ' is on ' + full + '.' + (link ? ' Please keep this link handy:\n' + link + '\n\n' + LOGIN_NOTE : '') + '\n\n' + calBlock + 'We will see you there.\n' + ORGANISER_NAME; break;
-      case '5h': body = 'The webinar on ' + topic + ' starts at ' + clock + '.\n\n' + withLink('Joining link: ') + 'We will see you there.'; break;
-      case '2h': body = 'The webinar on ' + topic + ' starts at ' + clock + '. Please join a few minutes early.\n\n' + withLink('Link: '); break;
-      default:   body = 'We start in 30 minutes.' + (link ? ' Join here:\n' + link + '\n\n' + LOGIN_NOTE : '') + '\n\n' + topic + ' \u00b7 ' + clock; break;
+      default:   body = 'Please save the date. Our webinar on ' + topic + ' is on ' + full + '. It is a ' + durationWord(ev.durationMinutes) + ' session, and we will keep time for your questions at the end.\n\n' + withLink('Joining link: ') + calBlock + sign; break;     // '5d'
     }
     return (top + body).replace(/\n+$/, '');
   }
@@ -2606,7 +2631,7 @@
     callBusy[ev.id] = false;
     const cur = findEvent(currentEventId); if (cur && cur.id === ev.id && activeView() === 'detail') { $('callCard').dataset.key = ''; renderCallCard(cur); }
   }
-  const INC_SHORT = { 'INR 5 Lakhs above': '5L+ income', 'INR 2 to 5 Lakhs': '2\u20135L income', 'Below INR 2 Lakh': '<2L income' };
+  const INC_SHORT = { 'Above Rs.24 lakhs': '24L+ income', 'Rs.12 lakhs to Rs.24 lakhs': '12\u201324L income', 'Below Rs.12 lakhs': '<12L income', 'INR 5 Lakhs above': '5L+ monthly', 'INR 2 to 5 Lakhs': '2\u20135L monthly', 'Below INR 2 Lakh': '<2L monthly' };
   function renderCallCard(ev){
     const box = $('callCard');
     if (!ev || !(ev.attended > 0)) { box.classList.add('hidden'); return; }
@@ -2806,6 +2831,7 @@
     try {
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], text: caption });
+        waCount(ev);
         if (kind) markReminded(ev, kind, a, row);
         toast(copied ? 'Message copied \u2014 if WhatsApp shows no caption, paste it' : 'Shared');
       } else {
@@ -3006,18 +3032,49 @@
   $('fbFilter').addEventListener('change', () => { fbFilter = $('fbFilter').value; renderFeedback(); });
 
   // ── Reminders to send: six moments before each webinar ─────────────────────────────
-  // 7 days, 3 days, 1 day, 5 hours, 2 hours and 30 minutes before the start (the same six moments as the Google Calendar alerts).
+  // 5 days, 1 day, the morning of the day and 1 hour before the start (the same four moments as the Google Calendar alerts).
   // From each moment until the next, that stage is "open": the WhatsApp icon next to a person opens THAT stage's message, and
   // tapping it ticks them for that stage (saved on this phone), so the pop-up and banner know who is still to be reminded.
   // Someone who missed an earlier stage is not sent it late — they get whichever stage is open now.
+  // The morning of the event day: 8:00 AM IST on the webinar's day (IST has no daylight saving), but never later than 3 hours before the start,
+  // so an early webinar still gets it in time. The Google Calendar alert uses the very same moment (Code.gs morningAt_).
+  const morningAt = (start) => { const d = new Date(start + 19800000); return Math.min(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 8) - 19800000, start - 3 * 3600000); };
   const WA_STAGES = [
-    { key: '7d', mins: 10080, head: '7 days to go' }, { key: '3d', mins: 4320, head: '3 days to go' }, { key: '1d', mins: 1440, head: '1 day to go' },
-    { key: '5h', mins: 300, head: '5 hours to go' }, { key: '2h', mins: 120, head: '2 hours to go' }, { key: '30m', mins: 30, head: '30 minutes to go' }
+    { key: '5d', mins: 7200, head: '5 days to go' }, { key: '1d', mins: 1440, head: '1 day to go' },
+    { key: 'am', at: morningAt, head: 'Morning of the day' }, { key: '1h', mins: 60, head: '1 hour to go' }
   ];
+  const stageAt = (st, start) => st.at ? st.at(start) : start - st.mins * 60000;
   const STAGE_HEAD = (key) => { const s = WA_STAGES.find(x => x.key === key); return s ? s.head : ''; };
   const LS_SENT = 'wm_rem_v1', LS_SKIP = 'wm_remskip_v1';
   function readJSON(k){ try { return JSON.parse(lsGet(k) || '{}') || {}; } catch (e) { return {}; } }
   let remSent = readJSON(LS_SENT), remSkip = readJSON(LS_SKIP);
+  // Every tap on a WhatsApp icon is counted (a tap opens WhatsApp with the message ready — the app cannot see whether you then pressed Send). After 15 messages
+  // in one sitting it asks you to take a break before the next batch, to keep your WhatsApp number safe: the batch starts again after a break of 30 minutes
+  // without a WhatsApp tap, or when you choose to go on. Kept on this phone.
+  const LS_WA = 'wm_wa_v1', WA_BATCH_LIMIT = 15, WA_BATCH_IDLE_MIN = 30;
+  let waStat = readJSON(LS_WA);
+  if (typeof waStat.total !== 'number') waStat = { total: 0, batch: 0, last: 0, byEv: {} };
+  if (!waStat.byEv) waStat.byEv = {};
+  const waSave = () => lsSet(LS_WA, JSON.stringify(waStat));
+  function waBatch(){ if (waStat.last && Date.now() - waStat.last > WA_BATCH_IDLE_MIN * 60000) { waStat.batch = 0; } return waStat.batch || 0; }
+  /** Before opening WhatsApp: false (and the tap is cancelled) if you chose to stop after 15 messages. */
+  function waGate(e){
+    if (waBatch() < WA_BATCH_LIMIT) return true;
+    if (!confirm(WA_BATCH_LIMIT + ' WhatsApp messages sent in this batch.\n\nTo keep your WhatsApp number safe, take a short break (about 30 minutes) before sending the next batch.\n\nOK = go on now anyway (a new batch starts)\nCancel = stop here')) { if (e) e.preventDefault(); return false; }
+    waStat.batch = 0; waSave(); renderWaCounter(); return true;
+  }
+  function waCount(ev){
+    waBatch(); waStat.batch++; waStat.total++; waStat.last = Date.now();
+    if (ev) waStat.byEv[ev.id] = (waStat.byEv[ev.id] || 0) + 1;
+    waSave(); renderWaCounter();
+    if (waStat.batch === WA_BATCH_LIMIT) toast(WA_BATCH_LIMIT + ' WhatsApp messages sent \u2014 time for a short break');
+  }
+  function renderWaCounter(){
+    const el = $('waCounter'); if (!el) return;
+    const ev = findEvent(currentEventId), b = waBatch();
+    el.classList.toggle('full', b >= WA_BATCH_LIMIT); el.classList.toggle('near', b >= WA_BATCH_LIMIT - 3 && b < WA_BATCH_LIMIT);
+    el.textContent = 'WhatsApp messages: ' + b + ' of ' + WA_BATCH_LIMIT + ' in this batch' + (b >= WA_BATCH_LIMIT ? ' \u2014 take a break' : '') + (ev ? ' \u00b7 ' + (waStat.byEv[ev.id] || 0) + ' for this webinar' : '') + ' \u00b7 ' + waStat.total + ' in all';
+  }
   (function pruneReminderMemory(){
     const cutoff = Date.now() - 21 * 86400000; let changed = false;
     Object.keys(remSent).forEach(k => { if (remSent[k] < cutoff) { delete remSent[k]; changed = true; } });
@@ -3033,16 +3090,16 @@
     const t = (now || new Date()).getTime(), start = new Date(ev.dateISO).getTime();
     if (isNaN(start) || t >= start) return null;
     let hit = null;
-    WA_STAGES.forEach(st => { if (start - t <= st.mins * 60000) hit = st.key; });
+    WA_STAGES.forEach(st => { if (t >= stageAt(st, start)) hit = st.key; });
     return hit;
   }
-  /** "5 hours to go \u2014 today 4:30 PM": the next stage after the open one (on this phone's clock). */
+  /** "Morning of the day \u2014 today 9:30 AM": the next stage after the open one (on this phone's clock). */
   function nextStageText(ev){
     const t = Date.now(), start = new Date(ev.dateISO).getTime(), cur = activeStage(ev);
     if (isNaN(start) || t >= start) return '';
     const nxt = WA_STAGES[(cur ? WA_STAGES.findIndex(x => x.key === cur) + 1 : 0)];
     if (!nxt) return '';
-    const at = new Date(start - nxt.mins * 60000), today = new Date().toDateString() === at.toDateString();
+    const at = new Date(stageAt(nxt, start)), today = new Date().toDateString() === at.toDateString();
     return nxt.head + ' \u2014 ' + (today ? 'today ' : at.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
   let renderedStageSig = '';
@@ -3300,6 +3357,42 @@
 
   // Built with DOM APIs (never innerHTML) because names/emails come from the
   // public form — a quote or tag in someone's name can't break the page.
+  // ── Mark one person Yes / No (after the webinar), and push one person to the CRM ──────────────────────────────────
+  let attSyncT = null;
+  const attSyncSoon = () => { clearTimeout(attSyncT); attSyncT = setTimeout(() => afterLeadsAdded(), 2500); };     // refresh the counts once you pause, not after every tap
+  async function quickMark(ev, a, v, box){
+    const prev = a.att || '', next = prev === v ? '' : v;
+    const paint = (val) => box.querySelectorAll('.mark-chip').forEach(b => { const on = b.dataset.v === val; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    const busy = (on) => box.querySelectorAll('.mark-chip').forEach(b => { b.disabled = on; });
+    if (next) a.att = next; else delete a.att;
+    paint(next); busy(true);
+    try {
+      const d = await apiPost({ action: 'setAttendance', id: ev.id, to: regTo(a), value: next === 'Y' ? 'Yes' : next === 'N' ? 'No' : 'Clear' });
+      if (d.error) throw new Error(d.error);
+      const c = loadAtt(ev.id); if (c) renderSegments(c.attendees);
+      attSyncSoon();
+    } catch (err) {
+      if (prev) a.att = prev; else delete a.att;
+      paint(prev); toast((err && err.message) || 'Could not save \u2014 nothing was changed');
+    }
+    busy(false);
+  }
+  const LS_CRM1 = 'wm_crmone_v1'; let crmOne = readJSON(LS_CRM1);
+  async function pushOneToCrm(ev, a, btn, key){
+    const nm = a.name || 'this person';
+    if (crmOne[key]) { toast(nm + ' is already in your CRM'); return; }
+    if (!confirm('Add ' + nm + ' to your CRM as a lead?')) return;
+    btn.classList.add('busy');
+    try {
+      const d = await apiPost({ action: 'crmPushOne', id: ev.id, person: regTo(a) });
+      if (d.error) throw new Error(d.error);
+      crmOne[key] = Date.now(); lsSet(LS_CRM1, JSON.stringify(crmOne));
+      btn.classList.add('done'); btn.title = nm + ' is in your CRM'; btn.setAttribute('aria-label', btn.title);
+      toast(d.added ? nm + ' added to your CRM' : nm + ' is already in your CRM');
+      if (d.added) afterLeadsAdded();
+    } catch (err) { toast((err && err.message) || 'Could not add to the CRM'); }
+    btn.classList.remove('busy');
+  }
   function attendeeRow(a, ev){
     const row = document.createElement('div');
     row.className = 'attendee-row';
@@ -3307,11 +3400,20 @@
     const name = document.createElement('div'); name.className = 'name'; name.textContent = a.name || '(no name)';
     who.appendChild(name);
     if (a.src) { const t = document.createElement('div'); t.className = 'tag-lead'; t.textContent = a.ls ? 'Offline lead \u00b7 ' + a.ls : 'Offline lead'; who.appendChild(t); }
-    if (a.att) { const t = document.createElement('div'); t.className = 'tag-att ' + (a.att === 'Y' ? 'yes' : 'no'); t.textContent = a.att === 'Y' ? 'Attended' : 'Didn\u2019t attend'; who.appendChild(t); }
+    const over = endTime(ev) <= Date.now();
+    if (a.att && !over) { const t = document.createElement('div'); t.className = 'tag-att ' + (a.att === 'Y' ? 'yes' : 'no'); t.textContent = a.att === 'Y' ? 'Attended' : 'Didn\u2019t attend'; who.appendChild(t); }
     if (a.att === 'Y' && attSegment === 'Y') { const rb = document.createElement('button'); rb.type = 'button'; rb.className = 'ghost-btn small rec-btn'; rb.textContent = 'Reconcile'; rb.style.marginTop = '6px'; rb.setAttribute('aria-label', 'Reconcile ' + (a.name || '') + ' with registered participants'); rb.addEventListener('click', (e) => { e.stopPropagation(); openReconcile(a); }); who.appendChild(rb); }
     if (a.email) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = a.email; who.appendChild(s); }
     const line2 = [a.mobile, a.country && a.country !== 'Unknown' ? a.country : ''].filter(Boolean).join(' · ');
     if (line2) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = line2; who.appendChild(s); }
+    if (over) {                                  // the webinar is over: one tap marks Yes / No in the sheet (tap the same one again to take it back)
+      const mk = document.createElement('div'); mk.className = 'mark-row'; mk.setAttribute('role', 'group'); mk.setAttribute('aria-label', 'Did ' + (a.name || 'this person') + ' attend?');
+      [['Y', '\u2713 Attended', 'yes'], ['N', '\u2717 Didn\u2019t attend', 'no']].forEach(([v, label, cls]) => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'mark-chip ' + cls + (a.att === v ? ' on' : ''); b.textContent = label; b.dataset.v = v; b.setAttribute('aria-pressed', a.att === v ? 'true' : 'false');
+        b.addEventListener('click', () => quickMark(ev, a, v, mk)); mk.appendChild(b);
+      });
+      who.appendChild(mk);
+    }
     const actions = document.createElement('div'); actions.className = 'actions';
     const stage = activeStage(ev) || followKind(a, ev);
     const ph = phoneLinks(a.mobile, a.country);
@@ -3326,7 +3428,9 @@
           const nxt = nextStageText(ev);
           if (!confirm('\u201c' + stageLabel(st).replace(/[\u201c\u201d]/g, '') + '\u201d has already been sent to ' + (a.name || 'this person') + '.' + (nxt ? '\n\nNext: ' + nxt + '.' : '') + '\n\nSend it again?')) { e.preventDefault(); return; }
         }
+        if (!waGate(e)) return;                                                         // 15 sent in this batch: a short break first
         waBtn.href = waBase + encodeURIComponent(reminderDraft(a, ev, st));        // the browser opens the link after this handler, so this is the one it uses
+        waCount(ev);
         markReminded(ev, st, a, row);
       });
       actions.appendChild(waBtn);
@@ -3336,6 +3440,13 @@
       const mailBtn = actionLink('mail', mailTo(followKind(a, ev)), 'Email ' + (a.name || ''), false);
       mailBtn.addEventListener('click', () => { mailBtn.href = mailTo(followKind(a, ev)); markReminded(ev, activeStage(ev) || followKind(a, ev), a, row); });   // decided at the tap, like the WhatsApp icon
       actions.appendChild(mailBtn);
+    }
+    if (a.mobile) {                              // push THIS person to the CRM as a lead (whether or not they attended: the CRM remark says which)
+      const crmKey = ev.id + '|' + whoKey(a), had = !!crmOne[crmKey];
+      const crmBtn = actionLink('crm', '#', had ? (a.name || 'This person') + ' is in your CRM' : 'Add ' + (a.name || 'this person') + ' to the CRM as a lead', false);
+      if (had) crmBtn.classList.add('done');
+      crmBtn.addEventListener('click', (e) => { e.preventDefault(); pushOneToCrm(ev, a, crmBtn, crmKey); });
+      actions.appendChild(crmBtn);
     }
     if (ev.attended || ev.absent) {      // attendance is recorded: tap to match this person with someone who joined under another name, or to fix Yes/No
       const mapBtn = actionLink('map', '#', 'Match ' + (a.name || '') + ' with an attendee', false);
@@ -3402,6 +3513,7 @@
   }
 
   function renderAttendees(){
+    renderWaCounter();
     renderedStageSig = stageSig();
     const ev = findEvent(currentEventId);
     const list = $('attendeeList');
@@ -3592,7 +3704,7 @@
     }
   }
 
-  // ── Audience profile: salaried / retired / business / others, and the monthly family-income band — for one webinar or all of them ──
+  // ── Audience profile: salaried / retired / business / others, and the annual-income band — for one webinar or all of them ──
   // The last numbers are kept on the phone, so they show instantly; the server's fresh count (admin-only `audience`) replaces them a moment later.
   let audData = null, audLoading = false, audLoadedAt = 0, audUnsupported = false, profChartInst = null, incChartInst = null;
   try { audData = JSON.parse(lsGet('wm_aud_v1') || 'null'); } catch (e) { audData = null; }
@@ -3650,7 +3762,7 @@
     let txt = t.total + ' registered';
     if (t.pNone === t.iNone) txt += ' \u00b7 ' + (t.total - t.pNone) + ' answered \u00b7 ' + t.pNone + ' not answered';
     else txt += ' \u00b7 profession: ' + (t.total - t.pNone) + ' answered \u00b7 income: ' + (t.total - t.iNone) + ' answered';
-    if (t.pNone || t.iNone) txt += ' (registered before these questions, or added by hand \u2014 not counted in the charts)';
+    if (t.pNone || t.iNone) txt += ' (not counted in the charts: registered before these questions, answered the older monthly-income question, or added by hand)';
     if (answeredP + answeredI === 0) {
       body.classList.add('hidden');
       note.textContent = t.total ? txt + ' \u2014 the charts appear once people answer on the registration page.' : 'Nobody has registered for this yet.';
