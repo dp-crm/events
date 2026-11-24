@@ -416,6 +416,13 @@
   .map-item:active{ background:var(--paper); }
   .map-item .nm{ font-weight:600; }
   .map-item .sub{ font-size:.8rem; color:var(--ink-soft); }
+  .fire-chip{ display:inline-block; margin-top:4px; border:1px solid #B8863B; color:#8A6224; background:transparent; border-radius:999px; padding:3px 10px; font:inherit; font-size:.76rem; cursor:pointer; text-align:left; }
+  .fire-chip.call{ background:#B8863B; color:#fff; }
+  @media (prefers-color-scheme:dark){ .fire-chip{ color:#D2A05C; border-color:#D2A05C; } .fire-chip.call{ color:#10213A; background:#D2A05C; } }
+  .fire-tbl{ width:100%; border-collapse:collapse; font-size:.88rem; margin:4px 0 8px; }
+  .fire-tbl td{ padding:6px 2px; border-top:1px solid var(--line); vertical-align:top; }
+  .fire-tbl td:last-child{ text-align:right; font-weight:600; }
+  .fire-tbl tr.sec td{ border-top:0; padding-top:12px; font-size:.72rem; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-soft); font-weight:600; text-align:left; }
   .um-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-top:1px solid var(--line); }
   .um-row .nm{ font-weight:600; }
   .um-row .sub{ font-size:.8rem; color:var(--ink-soft); }
@@ -552,6 +559,10 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></svg>
           Interest QR
         </button>
+        <button class="ghost-btn" id="fireQrBtn" aria-label="QR code and link for the Know your FIRE number page">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c1 3 4 4.5 4 8a4 4 0 0 1-8 0c0-1.5.6-2.4 1.3-3.3C10 9 11 9 11 7c0-1.5.4-2.8 1-4Z"/><path d="M6 17a6 6 0 0 0 12 0"/></svg>
+          FIRE QR
+        </button>
         <button class="ghost-btn" id="editEventBtn" aria-label="Edit this webinar">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           Edit
@@ -578,6 +589,7 @@
     <div id="visitCard" class="visit-card hidden"></div>
     <div id="funnelCard" class="visit-card hidden"></div>
     <div id="callCard" class="visit-card hidden"></div>
+    <div id="fireCard" class="visit-card hidden"></div>
     <div id="remindStrip" class="banner remind-banner hidden" role="status" style="cursor:default;"></div>
     <div id="waCounter" class="wa-counter" role="status"></div>
     <div class="attendees-head">
@@ -859,12 +871,25 @@
   </div>
 </div>
 
+<!-- FIRE entry details -->
+<div id="fireOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3 id="fireTitle">FIRE details</h3>
+      <button id="closeFireBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div id="fireBody"></div>
+    <button class="ghost-btn" id="fireDoneBtn" style="width:100%; justify-content:center; margin-top:10px;">Done</button>
+  </div>
+</div>
+
 <!-- Interest QR: the code for the thank-you slide -->
 <div id="qrOverlay" class="overlay hidden">
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-head">
-      <h3>QR for the thank-you slide</h3>
+      <h3 id="qrTitle">QR for the thank-you slide</h3>
       <button id="closeQrBtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <p class="muted-note" id="qrIntro" style="margin-bottom:10px;"></p>
@@ -1004,7 +1029,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '6.8';
+  const APP_VERSION = '6.9';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -2919,11 +2944,12 @@
   // ── The QR for the thank-you slide: "Yes, I am interested in <this webinar>" ─────────────────────────────────────────
   // Opens interested.html (a tiny public page: name + mobile → straight to your CRM as a lead). The QR library is read only the first time this is opened.
   let qrMaker = null, qrEvent = null;
-  function interestUrl(ev, country){
-    const base = location.origin + location.pathname.replace('admin.html', 'interested.html');
+  let qrKind = 'interest';
+  function interestUrl(ev, country, file){
+    const base = location.origin + location.pathname.replace('admin.html', file || 'interested.html');
     let url = base + '?id=' + encodeURIComponent(ev.id);
     if (ev.topic && ev.topic.length <= 70) url += '&t=' + encodeURIComponent(ev.topic).replace(/%20/g, '+');     // short names travel in the link (the page shows at once); long ones the page looks up
-    if (country && country !== 'UAE') url += '&c=' + encodeURIComponent(country);
+    if (country && (country !== 'UAE' || file === 'fire.html')) url += '&c=' + encodeURIComponent(country);       // the FIRE page starts on India unless told otherwise
     return url;
   }
   function drawQr(text){
@@ -2936,28 +2962,32 @@
     return n;
   }
   function refreshQr(){
-    const url = interestUrl(qrEvent, $('qrCountry').value);
+    const url = qrUrl();
     drawQr(url); $('qrLinkText').textContent = url;
   }
-  function openQr(ev){
+  const qrUrl = () => interestUrl(qrEvent, $('qrCountry').value, qrKind === 'fire' ? 'fire.html' : 'interested.html');
+  function openQr(ev, kind){
     if (!ev) return;
-    qrEvent = ev;
-    $('qrIntro').textContent = 'Put this on your thank-you slide. People scan it and tap \u201cYes, I am interested in ' + ev.topic + '\u201d, give their name and mobile number, and they land in your CRM as a lead \u2014 and you get an email at once with their number to call.';
+    qrEvent = ev; qrKind = kind === 'fire' ? 'fire' : 'interest';
+    $('qrTitle').textContent = qrKind === 'fire' ? 'QR for the FIRE number page' : 'QR for the thank-you slide';
+    if (qrKind === 'fire') $('qrIntro').textContent = 'Share this QR or link with your retirement-planning attendees. They enter a few details and see their FIRE number and FIRE age at once. Each person then shows on their own row here (matched by mobile or email), and anyone not on the registration list appears in the FIRE card, ready for you to push to the CRM.';
+    else $('qrIntro').textContent = 'Put this on your thank-you slide. People scan it and tap \u201cYes, I am interested in ' + ev.topic + '\u201d, give their name and mobile number, and they land in your CRM as a lead \u2014 and you get an email at once with their number to call.';
     const saved = lsGet('wm_qr_country'); if (saved) $('qrCountry').value = saved;
     refreshQr();
     $('qrOverlay').classList.remove('hidden');
     requestAnimationFrame(() => requestAnimationFrame(() => $('qrOverlay').classList.add('open')));
   }
   function hideQr(){ $('qrOverlay').classList.remove('open'); setTimeout(() => $('qrOverlay').classList.add('hidden'), 280); }
-  $('qrBtn').addEventListener('click', () => openQr(findEvent(currentEventId)));
+  $('qrBtn').addEventListener('click', () => openQr(findEvent(currentEventId), 'interest'));
+  $('fireQrBtn').addEventListener('click', () => openQr(findEvent(currentEventId), 'fire'));
   $('closeQrBtn').addEventListener('click', hideQr);
   $('qrDoneBtn').addEventListener('click', hideQr);
   $('qrOverlay').addEventListener('click', (e) => { if (e.target === $('qrOverlay')) hideQr(); });
   $('qrCountry').addEventListener('change', () => { lsSet('wm_qr_country', $('qrCountry').value); refreshQr(); });
-  $('qrCopyBtn').addEventListener('click', () => copyText(interestUrl(qrEvent, $('qrCountry').value), 'Interest link'));
-  $('qrOpenBtn').addEventListener('click', () => window.open(interestUrl(qrEvent, $('qrCountry').value), '_blank', 'noopener'));
+  $('qrCopyBtn').addEventListener('click', () => copyText(qrUrl(), qrKind === 'fire' ? 'FIRE link' : 'Interest link'));
+  $('qrOpenBtn').addEventListener('click', () => window.open(qrUrl(), '_blank', 'noopener'));
   $('qrDownloadBtn').addEventListener('click', () => {
-    const name = ((qrEvent && qrEvent.topic) || 'webinar').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + ' - interest QR.png';
+    const name = ((qrEvent && qrEvent.topic) || 'webinar').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + (qrKind === 'fire' ? ' - FIRE QR.png' : ' - interest QR.png');
     $('qrCanvas').toBlob((blob) => {
       if (!blob) { toast('Could not make the picture'); return; }
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
@@ -3393,6 +3423,109 @@
     } catch (err) { toast((err && err.message) || 'Could not add to the CRM'); }
     btn.classList.remove('busy');
   }
+  // ── Know your FIRE number: who used the calculator ────────────────────────────────────────────────────────────────────
+  // fire.html saves one row per person to the FIRE tab. Here each entry is matched to a registered participant by mobile (last 10 digits) or email and
+  // shown as a chip on that row; people who are NOT on the list are collected in the FIRE card with the same push-to-CRM icon. Saved on this phone and
+  // refreshed in the background, like the participant list.
+  const LS_FIRE = 'wm_fire_v1'; let fireMap = readJSON(LS_FIRE), fireAt = {}, fireShowAll = false, fireIdxMemo = null;
+  const last10 = (v) => { const d = String(v || '').replace(/\D/g, ''); return d.length >= 7 ? d.slice(-10) : ''; };
+  const rupees = (n) => { n = Math.round(Number(n) || 0); return n >= 1e7 ? 'Rs. ' + String(Math.round(n / 1e5) / 100) + ' Cr' : n >= 1e5 ? 'Rs. ' + String(Math.round(n / 1e3) / 100) + ' lakh' : 'Rs. ' + n.toLocaleString('en-IN'); };
+  function fireIdx(evId){
+    const arr = fireMap[evId];
+    if (!arr) return null;
+    if (fireIdxMemo && fireIdxMemo.arr === arr) return fireIdxMemo;
+    const m = {}, e = {};
+    arr.forEach(f => { const k = last10(f.mobile), em = String(f.email || '').trim().toLowerCase(); if (k) m[k] = f; if (em) e[em] = f; });
+    return (fireIdxMemo = { arr, m, e });
+  }
+  function fireFor(a, evId){
+    const ix = fireIdx(evId); if (!ix) return null;
+    return ix.m[last10(a.mobile)] || ix.e[String(a.email || '').trim().toLowerCase()] || null;
+  }
+  function fireChip(fe, ev){
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'fire-chip' + (fe.callMe ? ' call' : '');
+    b.textContent = 'FIRE ' + rupees(fe.fireNo).replace('Rs. ', 'Rs.') + ' · ' + fe.ready + '% on track' + (fe.callMe ? ' · wants a call' : '');
+    b.setAttribute('aria-label', 'FIRE calculator result for ' + (fe.name || 'this person'));
+    b.addEventListener('click', (e) => { e.stopPropagation(); openFire(fe, ev); });
+    return b;
+  }
+  async function loadFire(ev, force){
+    if (!ev) return;
+    if (!force && fireAt[ev.id] && Date.now() - fireAt[ev.id] < 60000) return;
+    fireAt[ev.id] = Date.now();
+    try {
+      const d = await apiGet({ action: 'fire', id: ev.id });
+      if (d.error || !Array.isArray(d.entries)) return;
+      const changed = JSON.stringify(fireMap[ev.id] || []) !== JSON.stringify(d.entries);
+      fireMap[ev.id] = d.entries; if (changed) lsSet(LS_FIRE, JSON.stringify(fireMap));
+      if (changed && currentEventId === ev.id) { renderFireCard(ev); renderAttendees(); }
+    } catch (e) { /* the saved copy stays on screen; the next visit tries again */ }
+  }
+  function renderFireCard(ev){
+    const box = $('fireCard'), all = (ev && fireMap[ev.id]) || [];
+    if (!ev || !all.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    const cached = loadAtt(ev.id), reg = cached ? cached.attendees : [];
+    const regM = {}, regE = {};
+    reg.forEach(a => { const k = last10(a.mobile), em = String(a.email || '').trim().toLowerCase(); if (k) regM[k] = 1; if (em) regE[em] = 1; });
+    const onList = (f) => !!(regM[last10(f.mobile)] || regE[String(f.email || '').trim().toLowerCase()]);
+    const off = cached ? all.filter(f => !onList(f)) : all;
+    const shown = fireShowAll ? all : off, calls = all.filter(f => f.callMe).length;
+    box.innerHTML = '';
+    box.appendChild(fnEl('h4', null, 'Know your FIRE number (' + all.length + ')'));
+    const sub = fnEl('p', 'visit-sub'); sub.style.cssText = 'margin:0 0 6px; text-align:left;';
+    sub.textContent = all.length + (all.length === 1 ? ' person has' : ' people have') + ' used the calculator' + (cached ? ' · ' + (all.length - off.length) + ' on your registration list (shown on their rows), ' + off.length + ' not' : '') + (calls ? ' · ' + calls + ' asked for a call' : '') + '.';
+    box.appendChild(sub);
+    if (!shown.length) box.appendChild(fnEl('p', 'visit-sub', 'Everyone who used it is already on your list. Look for the gold FIRE chip on their rows.'));
+    shown.forEach(f => {
+      const row = fnEl('div', 'um-row'); row.dataset.who = f.name;
+      const who = fnEl('div'); who.append(fnEl('div', 'nm', f.name || f.email || f.mobile));
+      const sb = [f.mobile, f.email, f.country].filter(Boolean).join(' · '); if (sb) who.append(fnEl('div', 'sub', sb));
+      who.appendChild(fireChip(f, ev));
+      const act = fnEl('div', 'actions'), ph = phoneLinks(f.mobile, f.country);
+      if (ph) {
+        act.appendChild(actionLink('call', 'tel:' + ph.tel, 'Call ' + (f.name || ''), false));
+        act.appendChild(actionLink('wa', 'https://wa.me/' + ph.wa, 'WhatsApp ' + (f.name || ''), true));
+      }
+      if (f.mobile) {
+        const key = ev.id + '|' + whoKey(f), had = !!crmOne[key] || !!f.crm;
+        const cb = actionLink('crm', '#', had ? (f.name || 'This person') + ' is in your CRM' : 'Add ' + (f.name || 'this person') + ' to the CRM as a lead', false);
+        if (had) cb.classList.add('done');
+        cb.addEventListener('click', (e) => { e.preventDefault(); if (f.crm && !crmOne[key]) { toast((f.name || 'This person') + ' is already in your CRM'); return; } pushOneToCrm(ev, f, cb, key); });
+        act.appendChild(cb);
+      }
+      row.append(who, act); box.appendChild(row);
+    });
+    if (cached && all.length > off.length) {
+      const t = fnEl('button', 'ghost-btn small', fireShowAll ? 'Show only people not on the list' : 'Show everyone (' + all.length + ')'); t.type = 'button'; t.style.marginTop = '8px';
+      t.addEventListener('click', () => { fireShowAll = !fireShowAll; renderFireCard(findEvent(currentEventId)); }); box.appendChild(t);
+    }
+    box.classList.remove('hidden');
+  }
+  function openFire(f, ev){
+    $('fireTitle').textContent = (f.name || 'FIRE details');
+    const body = $('fireBody'); body.innerHTML = '';
+    const t = document.createElement('table'); t.className = 'fire-tbl';
+    const sec = (h) => { const r = t.insertRow(); r.className = 'sec'; const c = r.insertCell(); c.colSpan = 2; c.textContent = h; };
+    const add = (k, v) => { const r = t.insertRow(); r.insertCell().textContent = k; r.insertCell().textContent = v; };
+    const yn = (v) => v === 'Yes' ? 'Yes' : 'No';
+    sec('Result');
+    add('FIRE number', rupees(f.fireNo)); add('Earliest FIRE age', f.fireAge ? 'Age ' + f.fireAge : 'After 75'); add('On track for retiring at ' + f.ret, f.ready + '%');
+    add('Monthly investing needed', f.sipReq ? rupees(f.sipReq) : 'On track'); add('Pot at retirement (at this pace)', rupees(f.proj));
+    sec('What they entered');
+    add('Age / dependents', f.age + ' / ' + f.deps); add('Monthly income', rupees(f.income)); add('Monthly expenses', rupees(f.expense)); add('EMIs ending before retirement', rupees(f.emi));
+    add('Existing investments', rupees(f.invest)); add('Investing every month', rupees(f.sip)); add('Pension or rent after retiring', rupees(f.other));
+    add('Retire at / plan till', f.ret + ' / ' + f.plan); add('Spending after retiring', f.life + '% of today'); add('Investing style', f.style);
+    add('Health cover', yn(f.health)); add('Term cover', yn(f.term)); add('Owns home', yn(f.home)); add('Asked for a call', f.callMe ? 'Yes' : 'No');
+    sec('Record'); add('Used the calculator', f.tries + (f.tries === 1 ? ' time' : ' times')); add('Last updated', f.updated ? fmtIST(f.updated) : ''); if (f.crm) add('CRM', f.crm);
+    body.appendChild(t);
+    $('fireOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => $('fireOverlay').classList.add('open')));
+  }
+  function hideFire(){ $('fireOverlay').classList.remove('open'); setTimeout(() => $('fireOverlay').classList.add('hidden'), 280); }
+  $('closeFireBtn').addEventListener('click', hideFire);
+  $('fireDoneBtn').addEventListener('click', hideFire);
+  $('fireOverlay').addEventListener('click', (e) => { if (e.target === $('fireOverlay')) hideFire(); });
+
   function attendeeRow(a, ev){
     const row = document.createElement('div');
     row.className = 'attendee-row';
@@ -3406,6 +3539,7 @@
     if (a.email) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = a.email; who.appendChild(s); }
     const line2 = [a.mobile, a.country && a.country !== 'Unknown' ? a.country : ''].filter(Boolean).join(' · ');
     if (line2) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = line2; who.appendChild(s); }
+    const fe = fireFor(a, ev.id); if (fe) who.appendChild(fireChip(fe, ev));
     if (over) {                                  // the webinar is over: one tap marks Yes / No in the sheet (tap the same one again to take it back)
       const mk = document.createElement('div'); mk.className = 'mark-row'; mk.setAttribute('role', 'group'); mk.setAttribute('aria-label', 'Did ' + (a.name || 'this person') + ' attend?');
       [['Y', '\u2713 Attended', 'yes'], ['N', '\u2717 Didn\u2019t attend', 'no']].forEach(([v, label, cls]) => {
@@ -3589,6 +3723,7 @@
     renderCrmCard(ev);
     renderFunnelCard(ev);
     renderCallCard(ev);
+    renderFireCard(ev); loadFire(ev);
     renderUnmatchedCard(ev); loadUnmatched(ev);
     $('dDescription').textContent = ev.description || '';
     $('dDescription').style.display = ev.description ? 'block' : 'none';
