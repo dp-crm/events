@@ -77,9 +77,82 @@
   details ul{padding-left:1.1rem;margin:.3rem 0}
   table.as{width:100%;border-collapse:collapse;font-size:.8rem;margin:.4rem 0}
   table.as td{padding:.25rem .2rem;border-top:1px solid var(--line);vertical-align:top}
-  table.as td:last-child{text-align:right;color:var(--ink);white-space:nowrap}
+  table.as td:last-child{color:var(--ink)}
+  table.as.kv td:last-child{text-align:right;white-space:nowrap}
+  table.types{width:100%;border-collapse:collapse;font-size:.86rem}
+  table.types th{text-align:left;font-size:.7rem;letter-spacing:.04em;text-transform:uppercase;color:var(--soft);font-weight:600;padding:.4rem .5rem;border-bottom:2px solid var(--line)}
+  table.types td{padding:.65rem .5rem;border-bottom:1px solid var(--line);vertical-align:top}
+  table.types td.amt{text-align:right;white-space:nowrap;font-weight:700;font-size:1rem}
+  table.types th.amt{text-align:right}
+  table.types tr.me td{background:var(--tint)}
+  table.types tr.me td.amt{color:var(--gold)}
+  table.types td.nm{font-weight:700;white-space:nowrap}
+  table.types td.nm small{display:block;font-weight:400;color:var(--gold);font-size:.7rem}
+  table.types .na{font-weight:400;color:var(--soft);font-size:.8rem}
+  @media (min-width:720px){.wide .wrap{max-width:46rem}.wide .tiles{grid-template-columns:repeat(auto-fit,minmax(10rem,1fr))}.wide .flav{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (max-width:639px){
+    table.types thead{display:none}
+    table.types,table.types tbody,table.types tr,table.types td{display:block;width:100%}
+    table.types tr{border:1px solid var(--line);border-radius:10px;margin:0 0 .6rem;padding:.55rem .7rem .4rem}
+    table.types td{border:0;padding:.2rem 0;background:none!important}
+    table.types td.nm{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;font-size:1rem}
+    table.types td.nm small{display:inline;margin:0}
+    table.types td.amt{text-align:left;font-size:1.15rem}
+    table.types td[data-l]::before{content:attr(data-l);display:block;font-size:.66rem;letter-spacing:.04em;text-transform:uppercase;color:var(--soft);font-weight:600}
+    table.types td.nm::before,table.types td.amt::before{display:none}
+    table.types td.amt{order:0}
+  }
   .save{font-size:.76rem;text-align:center;color:var(--soft);margin:.2rem 0 0}
   .save a{color:var(--btn);font-weight:600;cursor:pointer;text-decoration:underline}
+  .rhead{margin:0 0 .6rem;min-height:1.2rem}.logo{display:block;height:2.6rem;width:auto}
+  @media (prefers-color-scheme:dark){.logo{background:#fff;padding:4px 8px;border-radius:8px;height:2.9rem}}
+  #rep{display:none}
+  @media (min-width:1000px){
+    .wide .wrap{max-width:70rem}
+    .wide #res{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem;align-items:stretch}
+    .wide #res>.card{margin:0}.wide #res>.card:nth-child(1),.wide #res>.card:nth-child(2){grid-column:1/-1}
+    .wide #res>.card:first-child{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr);column-gap:2rem;align-items:center}
+    .wide #res>.card:first-child .rhead{grid-column:1/-1;margin:0}
+    .wide #res>.card:first-child .tiles{margin:0}.wide #res>.card:first-child .tiles{grid-template-columns:1fr 1fr}
+    .wide #res>.card:first-child #track,.wide #res>.card:first-child .save,.wide #res>.card:first-child .btns{grid-column:1/-1}
+  }
+  #rep{width:210mm;height:296mm;margin:0 auto;padding:9mm 14mm 9mm;position:relative;overflow:hidden;box-sizing:border-box;background:#fff;color:#10213A;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:9pt;line-height:1.35;-webkit-print-color-adjust:exact;print-color-adjust:exact;page-break-after:avoid;page-break-inside:avoid}
+  #rep *{box-sizing:border-box}
+  #rep .rh{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:3mm;border-bottom:.7mm solid #B8863B}
+  #rep .rh img{height:14mm;width:auto;display:block}
+  #rep .rh .t{text-align:right}#rep .rh .t b{display:block;font-family:Georgia,'Times New Roman',serif;font-size:16pt;font-weight:600}
+  #rep .rh .t span{font-size:9pt;color:#4C5A6E}
+  #rep .hero{margin-top:4mm;background:#F3F6FA;border:.3mm solid #D7DCE3;border-radius:3mm;text-align:center;padding:5mm 6mm}
+  #rep .hero .k{font-size:10pt;color:#4C5A6E}
+  #rep .hero .n{font-family:Georgia,'Times New Roman',serif;font-size:38pt;font-weight:700;color:#B8863B;line-height:1.1;margin:.5mm 0}
+  #rep .hero .s{font-size:8.5pt;color:#4C5A6E}
+  #rep .tl{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;margin-top:3.5mm}
+  #rep .tl div{border:.3mm solid #D7DCE3;border-radius:2.5mm;padding:2mm 3mm}
+  #rep .tl b{display:block;font-size:11.5pt;font-weight:700}#rep .tl span{font-size:7.5pt;color:#4C5A6E}
+  #rep h3{margin:5.5mm 0 2mm;font-family:Georgia,'Times New Roman',serif;font-size:11pt;font-weight:700;color:#10213A}
+  #rep .kv2{display:grid;grid-template-columns:repeat(3,1fr);column-gap:6mm;align-items:start}
+  #rep table{width:100%;border-collapse:collapse}
+  #rep .kv2 td{padding:1.2mm 0;border-bottom:.2mm solid #D7DCE3;font-size:8.5pt}#rep .kv2 td:last-child{text-align:right;font-weight:600;padding-left:2mm;white-space:nowrap}
+  #rep table.ty th{background:#10213A;color:#fff;text-align:left;font-size:8pt;padding:1.5mm 2.4mm;font-weight:600}
+  #rep table.ty td{padding:1.9mm 2.4mm;border-bottom:.2mm solid #D7DCE3;font-size:7.8pt;vertical-align:middle}
+  #rep table.ty th.a,#rep table.ty td.a{text-align:right;white-space:nowrap}
+  #rep table.ty td.a{font-size:10.5pt;font-weight:700;color:#10213A}
+  #rep table.ty td.nm{font-weight:700;font-size:8.8pt;white-space:nowrap}
+  #rep table.ty tr.me td{background:#FBF4E6}#rep table.ty tr.me td.a{color:#B8863B}
+  #rep .na{font-weight:400;color:#4C5A6E;font-size:7.5pt}
+  #rep .nt{margin:1.6mm 0 0;font-size:7.3pt;color:#4C5A6E}
+  #rep .al{margin:2.4mm 0 0;font-size:8pt}#rep .al p{margin:0 0 1mm;padding-left:3mm;border-left:.8mm solid #B8863B}
+  #rep .cta{margin-top:5mm;background:#10213A;color:#fff;border-radius:3mm;padding:3.4mm 6mm;display:flex;justify-content:space-between;align-items:center;gap:6mm}
+  #rep .cta b{font-family:Georgia,'Times New Roman',serif;font-size:12.5pt;font-weight:600;display:block}#rep .cta span{font-size:8.5pt;color:#D7DCE3}
+  #rep .cta .c{text-align:right;white-space:nowrap}#rep .cta .c strong{font-size:13pt;color:#E3B76B;display:block}
+  #rep .ft{position:absolute;left:14mm;right:14mm;bottom:8mm;border-top:.4mm solid #B8863B;padding-top:2mm;text-align:center;font-size:7.6pt;color:#4C5A6E;line-height:1.4}
+  #rep .ft b{color:#10213A;font-size:9.5pt}#rep .ft .d{margin-top:.8mm;font-size:7pt}
+  @page{size:A4;margin:0}
+  @media print{
+    html,body{background:#fff!important;padding:0!important;margin:0!important;min-height:0!important;font-size:16px!important}
+    .wrap{display:none!important}
+    #rep{display:block!important}
+  }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -88,61 +161,50 @@
 
 <!-- ───────── The form: three short steps ───────── -->
 <div class="card" id="formCard">
-  <p class="brand" id="firm">Wealth Matrix</p>
+  <div class="rhead"><img class="logo" src="wm-logo.png" alt="Wealth Matrix" width="120" height="61" onerror="this.style.display='none';document.getElementById('firm').style.display=''"><p class="brand" id="firm" style="display:none">Wealth Matrix</p></div>
   <h1><span id="topic">Retirement planning webinar</span>Know your FIRE number</h1>
-  <p class="lead">FIRE = Financial Independence, Retire Early: the savings pot that can pay for your life without a salary. Answer a few questions and see your number, in about two minutes.</p>
-  <div class="dots" id="dots"><i class="on"></i><i></i><i></i></div>
-  <p class="stepname" id="stepname">Step 1 of 3 · About you</p>
+  <p class="lead">FIRE = Financial Independence, Retire Early: the savings pot that can pay for your life without a salary. Two quick pages, and you see your number.</p>
+  <div class="dots" id="dots"><i class="on"></i><i></i></div>
+  <p class="stepname" id="stepname">Step 1 of 2 · About you</p>
 
   <form id="f" novalidate autocomplete="on">
     <div class="step on" data-s="1">
       <label for="name">Your name</label>
       <input id="name" autocomplete="name" maxlength="80">
+      <p class="lead" style="margin-top:.9rem">Everything below is optional. Add them if you would like Wealth Matrix to reach you with your result.</p>
       <div class="row mob">
         <div><label for="country">Country</label><select id="country"></select></div>
-        <div><label for="mobile">Mobile number</label><input id="mobile" type="tel" inputmode="tel" autocomplete="tel"></div>
+        <div><label for="mobile">Mobile number <small>(optional)</small></label><input id="mobile" type="tel" inputmode="tel" autocomplete="tel"></div>
       </div>
       <label for="email">Email <small>(optional)</small></label>
       <input id="email" type="email" inputmode="email" autocomplete="email" maxlength="120">
-      <div class="row">
-        <div><label for="age">Your age</label><input id="age" type="number" inputmode="numeric" min="18" max="70" placeholder="e.g. 38"></div>
-        <div><label for="deps">Dependent family members</label><input id="deps" type="number" inputmode="numeric" min="0" max="15" placeholder="e.g. 3"><p class="hint">Spouse, children, parents</p></div>
-      </div>
+      <label for="age">Your age <small>(optional)</small></label>
+      <input id="age" type="number" inputmode="numeric" min="18" max="70" placeholder="e.g. 38">
     </div>
 
     <div class="step" data-s="2">
-      <p class="lead">All amounts in Indian rupees. Monthly means per month, in today's money.</p>
+      <p class="lead">Amounts in rupees, per month, in today's money. We take care of inflation and returns for you.</p>
+      <label for="expense">Total family expenses now <small>(per month, everything including EMIs and fees)</small></label>
+      <input id="expense" type="number" inputmode="numeric" min="0" placeholder="e.g. 90000">
+      <label for="emi">Of that, expenses that will stop before you retire <small>(EMIs, children's education fees, etc.)</small></label>
+      <input id="emi" type="number" inputmode="numeric" min="0" placeholder="e.g. 30000">
+      <label for="ret">You want to retire at age <small>(60 if you leave it empty)</small></label>
+      <input id="ret" type="number" inputmode="numeric" min="30" max="80" placeholder="60">
+      <label for="life">Your lifestyle after retiring</label>
+      <select id="life"><option value="same" selected>Same as today (recommended)</option><option value="higher">Higher lifestyle: more travel, hobbies</option><option value="frugal">Frugal: 20% less expense</option></select>
       <div class="row">
-        <div><label for="income">Monthly income <small>(take-home)</small></label><input id="income" type="number" inputmode="numeric" min="0" placeholder="e.g. 150000"></div>
-        <div><label for="expense">Monthly expenses <small>(all, with EMIs)</small></label><input id="expense" type="number" inputmode="numeric" min="0" placeholder="e.g. 80000"></div>
+        <div><label for="health">Health insurance?</label><select id="health"><option value="Y" selected>Yes, I have it</option><option value="N">No, I do not</option></select></div>
+        <div><label for="deps">Dependants then</label><select id="deps"><option value="0" selected>None</option><option value="1">1 dependant</option><option value="2">2 dependants</option></select></div>
       </div>
-      <label for="emi">Of that, loan EMIs that will end before you retire <small>(0 if none)</small></label>
-      <input id="emi" type="number" inputmode="numeric" min="0" placeholder="e.g. 25000">
-      <label for="invest">Existing investments kept for retirement <small>(mutual funds, stocks, EPF, PPF, NPS …)</small></label>
-      <input id="invest" type="number" inputmode="numeric" min="0" placeholder="e.g. 2500000">
-      <p class="hint">Do not include your own house or gold you will not sell.</p>
-      <label for="sip">Amount you add to these every month <small>(0 if none)</small></label>
-      <input id="sip" type="number" inputmode="numeric" min="0" placeholder="e.g. 30000">
-      <label for="other">Pension or rent you expect each month after retiring <small>(0 if none)</small></label>
-      <input id="other" type="number" inputmode="numeric" min="0" placeholder="e.g. 15000">
-    </div>
-
-    <div class="step" data-s="3">
+      <label for="debt">Debts and loans still running after you retire</label>
+      <select id="debt"><option value="N" selected>Nil</option><option value="Y">Yes</option></select>
       <div class="row">
-        <div><label for="ret">Retire at age</label><input id="ret" type="number" inputmode="numeric" min="30" max="80" value="60"></div>
-        <div><label for="plan">Plan till age</label><select id="plan"><option>85</option><option selected>90</option><option>95</option><option>100</option></select></div>
+        <div><label for="invest">Savings so far for retirement <small>(optional)</small></label><input id="invest" type="number" inputmode="numeric" min="0" placeholder="e.g. 2500000"></div>
+        <div><label for="sip">Saved every month <small>(optional)</small></label><input id="sip" type="number" inputmode="numeric" min="0" placeholder="e.g. 30000"></div>
       </div>
-      <label for="life">Your spending after retiring</label>
-      <select id="life"><option value="">Choose…</option><option value="0.7">Lower: about 70% of today's (simple living)</option><option value="1">Same as today</option><option value="1.25">Higher: about 125% (more travel, hobbies)</option></select>
-      <label for="style">How are your investments invested?</label>
-      <select id="style"><option value="">Choose…</option><option value="cautious">Mostly safe: FDs, debt funds, PPF</option><option value="balanced">Mix of equity and debt</option><option value="growth">Mostly equity: stocks, equity funds</option></select>
-      <div class="row">
-        <div><label for="health">Health insurance cover?</label><select id="health"><option value="">Choose…</option><option value="Y">Yes</option><option value="N">No</option></select></div>
-        <div><label for="term">Term life cover?</label><select id="term"><option value="">Choose…</option><option value="Y">Yes</option><option value="N">No</option></select></div>
-      </div>
-      <label for="home">Do you own the home you live in?</label>
-      <select id="home"><option value="">Choose…</option><option value="Y">Yes</option><option value="N">No, I pay rent</option></select>
-      <label class="chk"><input type="checkbox" id="callme"><span>I would like a call from Wealth Matrix to go through my result.</span></label>
+      <p class="hint">Savings: mutual funds, stocks, EPF, PPF, NPS. Not your own home.</p>
+      <label for="income">Total family income <small>(per month, optional)</small></label>
+      <input id="income" type="number" inputmode="numeric" min="0" placeholder="e.g. 200000">
     </div>
 
     <input class="hp" id="website" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
@@ -158,47 +220,56 @@
 <!-- ───────── The result ───────── -->
 <div id="res">
   <div class="card">
-    <p class="brand" id="firm2">Wealth Matrix</p>
+    <div class="rhead"><img class="logo" src="wm-logo.png" alt="Wealth Matrix" width="120" height="61" onerror="this.style.display='none';document.getElementById('firm2').style.display=''"><p class="brand" id="firm2" style="display:none">Wealth Matrix</p></div>
     <div class="hero">
       <div class="k" id="hHello">Your FIRE number</div>
       <div class="big" id="hNum">—</div>
       <div class="sub" id="hSub"></div>
     </div>
     <div class="tiles">
-      <div class="tile"><b id="tAge">—</b><span>Earliest age you can reach it</span></div>
-      <div class="tile"><b id="tSip">—</b><span id="tSipL">Monthly investing needed</span></div>
-      <div class="tile"><b id="tProj">—</b><span id="tProjL">Your pot at retirement</span></div>
-      <div class="tile"><b id="tSpend">—</b><span>Yearly spending then</span></div>
+      <div class="tile"><b id="tPost">—</b><span>Your monthly expense at retirement</span></div>
+      <div class="tile"><b id="tYears">—</b><span id="tYearsL">Years the money must last</span></div>
+      <div class="tile" id="tileAge"><b id="tAge">—</b><span>Earliest age you can reach it</span></div>
+      <div class="tile" id="tileSip"><b id="tSip">—</b><span id="tSipL">Monthly saving needed</span></div>
     </div>
-    <p class="stepname" style="margin-top:.9rem" id="readyL">Plan on track</p>
-    <div class="bar"><i id="readyBar" style="width:0"></i></div>
+    <div id="track" style="display:none"><p class="stepname" style="margin-top:.9rem" id="readyL"></p><div class="bar"><i id="readyBar" style="width:0"></i></div></div>
     <p class="save" id="save"></p>
+    <div class="btns"><button type="button" id="pdf">Save as PDF — one-page report</button></div>
   </div>
 
   <div class="card">
-    <h2>Three ways to retire</h2>
-    <div class="flav" id="flav"></div>
-    <p class="hint" style="margin-top:.5rem">Lean: you live on 70% of that spending. Fat: 150%, a more comfortable life.</p>
+    <h2>Types of FIRE and the corpus you need</h2>
+    <table class="types" id="types"></table>
+    <p class="hint" style="margin-top:.5rem" id="typesNote"></p>
   </div>
 
-  <div class="card"><h2>Your pot growing to retirement</h2><div id="chart"></div></div>
+  <div class="card">
+    <h2>Your number for each lifestyle</h2>
+    <div class="flav" id="flav"></div>
+    <p class="hint" style="margin-top:.5rem">Frugal: 20% less expense. Higher: expenses grow 1% a year faster than inflation until you retire.</p>
+  </div>
+
+  <div class="card" id="chartCard" style="display:none"><h2>Your savings growing to retirement</h2><div id="chart"></div></div>
 
   <div class="card"><h2>Things to look at</h2><ul class="flags" id="flags"></ul></div>
 
   <div class="card">
     <details>
       <summary>How this was worked out</summary>
-      <p><b>FIRE number</b> = yearly spending at retirement ÷ safe withdrawal rate. Spending today (after removing EMIs that end, and any pension or rent) is grown by inflation to your retirement age.</p>
-      <p><b>Earliest age</b> = the first age at which your investments, growing with your monthly additions, reach the number needed at that age.</p>
+      <p><b>Step 1.</b> Your monthly expense today, less the expenses that stop before you retire, is grown by inflation up to your retirement age. That gives your monthly expense at retirement. Dependants add 5% (one) or 10% (two) to it, every year of retirement.</p>
+      <p><b>Step 2.</b> From retirement to age 90, you withdraw that yearly expense at the start of each year. It rises 5% a year with inflation, while the money left earns 8%. The amount needed on the day you retire, to pay for all those years, is your corpus.</p>
+      <p><b>Step 3.</b> Rs. 25 lakh is added and kept aside as a health emergency fund. That total is your FIRE number.</p>
       <table class="as" id="as"></table>
-      <p><b>Where the assumptions come from</b></p>
+      <p><b>What changes your FIRE number</b></p>
       <ul>
-        <li>Retail inflation (CPI): 6.09% in October 2026 (MoSPI).</li>
-        <li>Safe withdrawal rate for India: research puts it near 3% (Saraogi and Raju); planners use 3 to 3.5%. Lower for longer retirements.</li>
-        <li>Equity returns: Nifty 50 Total Return Index has delivered about 12% a year over 10 to 20 years. We use less, as a margin.</li>
-        <li>Debt: 10-year government bond yield about 7.1 to 7.5% (RBI).</li>
-        <li>Medical costs: rising 11.5 to 14% a year, so a share of your spending is inflated faster.</li>
-        <li>Life expectancy at 60: about 17.5 more years for men and 19.8 for women (SRS 2020-24), so we plan well beyond that.</li>
+        <li><b>Monthly expenses:</b> the more you spend each year, the larger the corpus, since your investments must support those expenses throughout retirement.</li>
+        <li><b>Retirement age:</b> retiring early means a longer retirement and a bigger corpus.</li>
+        <li><b>Inflation:</b> rising prices raise your future living costs, so the corpus must keep your purchasing power.</li>
+        <li><b>Investment returns:</b> better returns can get you to the goal faster. Lower returns mean saving more.</li>
+        <li><b>Lifestyle choices:</b> travel, hobbies, housing and dining plans decide what you spend after retiring.</li>
+        <li><b>Healthcare costs:</b> medical expenses and insurance premiums can add a lot, so keep a buffer.</li>
+        <li><b>Dependants:</b> if you will still support children, parents or others, their expenses count too.</li>
+        <li><b>Debt and liabilities:</b> loans and EMIs raise expenses and can delay your FIRE date if not managed well.</li>
       </ul>
       <p>Markets do not give fixed returns. This is a planning estimate, to be reviewed every year.</p>
     </details>
@@ -207,25 +278,32 @@
   </div>
 </div>
 </div>
+<div id="rep" aria-hidden="true"></div>
 
 <script>
 (function () {
   'use strict';
   // ── Assumptions: change these and every number on the page follows ─────────────────────
   var A = {
-    inflation: 0.06,                 // general inflation (CPI 6.09%, Oct 2026)
-    medInflation: 0.12,              // medical inflation (11.5 to 14%)
-    medShare: 0.10,                  // share of retirement spending that is medical
-    returns: { cautious: 0.08, balanced: 0.10, growth: 0.12 },   // yearly return before retirement
-    stepUp: 0.05,                    // yearly rise in monthly investing
-    swr: [[40, 0.030], [30, 0.0325], [25, 0.035], [0, 0.0375]],  // [retirement years at least, withdrawal rate]
-    lean: 0.7, fat: 1.5,
+    inflPre: 0.06,          // inflation until you retire
+    retPre: 0.12,           // return on savings until you retire
+    inflPost: 0.05,         // inflation after you retire
+    retPost: 0.08,          // return on the corpus after you retire
+    plan: 90,               // the money must last until this age
+    higherExtra: 0.01,      // higher lifestyle: expenses grow this much faster than inflation, every year until retirement
+    frugal: 0.8,            // frugal lifestyle: 20% less expense
+    depLoad: { 0: 0, 1: 0.05, 2: 0.10 },   // dependants: extra expense, every year of retirement
+    fat: 1.2,               // Fat FIRE: 20% more than the calculated number
+    lean: 0.8,              // Lean FIRE: 20% less
+    barista: 0.5,           // Barista FIRE: 50% less ...
+    baristaFloor: 15000000, // ... but never below Rs. 1.5 Cr (150 lakh), unless that is more than the full number
+    earmark: 2500000,       // health emergency fund added to the corpus
     maxFireAge: 75
   };
 
   var $ = function (i) { return document.getElementById(i); };
   var q = new URLSearchParams(location.search), id = (q.get('id') || '').trim(), topic = (q.get('t') || '').trim();
-  var opened = Date.now(), step = 1, busy = false, lastBody = null, saved = false;
+  var opened = Date.now(), step = 1, busy = false, lastBody = null;
 
   // ── Money formatting ──
   function inr(n) {
@@ -238,38 +316,36 @@
   function pct(x) { return (Math.round(x * 100) / 100) + '%'; }
 
   // ── The calculation ──
-  function swrFor(years) { for (var i = 0; i < A.swr.length; i++) if (years >= A.swr[i][0]) return A.swr[i][1]; return A.swr[A.swr.length - 1][1]; }
-  function blend() { return (1 - A.medShare) * A.inflation + A.medShare * A.medInflation; }
-  function growthFactor(n, r, step, sip) {                       // value at year n of a monthly amount added every month, rising each year
+  function growthFactor(n, r, sip) {                       // value at year n of a monthly amount added every month (flat)
     var t = 0;
-    for (var y = 1; y <= n; y++) t += sip * 12 * Math.pow(1 + step, y - 1) * Math.pow(1 + r, n - y + 0.5);
+    for (var y = 1; y <= n; y++) t += sip * 12 * Math.pow(1 + r, n - y + 0.5);
     return t;
   }
+  function need(i, retAge, life) {
+    var n = retAge - i.age, T = A.plan - retAge;
+    var lf = life === 'frugal' ? A.frugal : 1, g = (1 + A.inflPre) * (life === 'higher' ? 1 + A.higherExtra : 1) - 1;
+    var load = A.depLoad[i.deps] || 0;
+    var monthly = Math.max(0, i.expense - i.emi) * lf * Math.pow(1 + g, n) * (1 + load);
+    var yearly = monthly * 12, qq = (1 + A.inflPost) / (1 + A.retPost);
+    var annuity = T > 0 ? yearly * (1 - Math.pow(qq, T)) / (1 - qq) : 0;      // yearly spend paid at the start of each year, rising with inflation, money earning the post-retirement return
+    return { monthly: monthly, yearly: yearly, annuity: annuity, corpus: annuity + A.earmark, years: T, n: n, g: g };
+  }
   function calc(i) {
-    var r = A.returns[i.style] || A.returns.balanced, bl = blend();
-    var baseYear = Math.max(0, ((i.expense - i.emi) * i.life - i.other) * 12);
-    function needAt(ret, mult) {
-      var n = ret - i.age, spend = baseYear * (mult || 1) * Math.pow(1 + bl, n), w = swrFor(i.plan - ret);
-      return { spend: spend, swr: w, need: spend / w };
-    }
-    function projAt(ret) { var n = ret - i.age; return i.invest * Math.pow(1 + r, n) + growthFactor(n, r, A.stepUp, i.sip); }
-    var n = i.ret - i.age, nd = needAt(i.ret), proj = projAt(i.ret);
+    var life = i.life || 'same', d = need(i, i.ret, life), n = d.n;
+    var has = i.invest > 0 || i.sip > 0;
+    var proj = i.invest * Math.pow(1 + A.retPre, n) + growthFactor(n, A.retPre, i.sip);
     var fireAge = null;
-    for (var a = i.age + 1; a <= A.maxFireAge && a < i.plan - 4; a++) { if (projAt(a) >= needAt(a).need) { fireAge = a; break; } }
-    var gap = Math.max(0, nd.need - i.invest * Math.pow(1 + r, n));
-    var f = growthFactor(n, r, A.stepUp, 1);
-    var sipReq = f > 0 ? gap / f : 0;
-    var curve = [];
-    for (var y = 0; y <= n; y++) curve.push([i.age + y, i.invest * Math.pow(1 + r, y) + growthFactor(y, r, A.stepUp, i.sip)]);
-    var lean = needAt(i.ret, A.lean).need, fat = needAt(i.ret, A.fat).need;
+    if (has) for (var a = i.age + 1; a <= A.maxFireAge && a < A.plan - 4; a++) { var pa = i.invest * Math.pow(1 + A.retPre, a - i.age) + growthFactor(a - i.age, A.retPre, i.sip); if (pa >= need(i, a, life).corpus) { fireAge = a; break; } }
+    var gap = Math.max(0, d.corpus - i.invest * Math.pow(1 + A.retPre, n)), f = growthFactor(n, A.retPre, 1);
+    var curve = []; for (var y = 0; y <= n; y++) curve.push([i.age + y, i.invest * Math.pow(1 + A.retPre, y) + growthFactor(y, A.retPre, i.sip)]);
     return {
-      fireNo: nd.need, spendThen: nd.spend, swr: nd.swr, proj: proj, ready: nd.need > 0 ? Math.min(100, proj / nd.need * 100) : 100,
-      fireAge: fireAge, sipReq: sipReq, years: n, retireYears: i.plan - i.ret, rate: r, infl: bl,
-      todayMoney: nd.need / Math.pow(1 + bl, n), lean: lean, fat: fat, curve: curve, baseYear: baseYear,
+      fireNo: d.corpus, annuity: d.annuity, monthlyAtRet: d.monthly, yearlyAtRet: d.yearly, years: n, retireYears: d.years, g: d.g,
+      proj: proj, has: has, ready: d.corpus > 0 ? Math.min(100, proj / d.corpus * 100) : 100, fireAge: fireAge, sipReq: f > 0 ? gap / f : 0, curve: curve,
+      byLife: { frugal: need(i, i.ret, 'frugal').corpus, same: need(i, i.ret, 'same').corpus, higher: need(i, i.ret, 'higher').corpus },
       saveRate: i.income > 0 ? (i.income - i.expense) / i.income : 0
     };
   }
-  window.FIRE_CALC = { calc: calc, assumptions: A, inr: inr, swrFor: swrFor };
+  window.FIRE_CALC = { calc: calc, need: need, assumptions: A, inr: inr };
 
   // ── Country and mobile (same behaviour as the "interested" page) ──
   var DIAL = { 'UAE': '+971', 'Saudi Arabia': '+966', 'Qatar': '+974', 'Kuwait': '+965', 'Oman': '+968', 'Bahrain': '+973', 'India': '+91', 'USA': '+1', 'UK': '+44', 'Canada': '+1', 'Australia': '+61', 'Singapore': '+65' };
@@ -304,14 +380,14 @@
   }
 
   // ── Steps ──
-  var NAMES = ['About you', 'Your money today', 'Your retirement plan'];
+  var NAMES = ['About you', 'Your family\'s money'];
   function show(n) {
     step = n;
     Array.prototype.forEach.call(document.querySelectorAll('.step'), function (s) { s.classList.toggle('on', +s.getAttribute('data-s') === n); });
     Array.prototype.forEach.call($('dots').children, function (d, k) { d.className = k < n ? 'on' : ''; });
-    $('stepname').textContent = 'Step ' + n + ' of 3 · ' + NAMES[n - 1];
+    $('stepname').textContent = 'Step ' + n + ' of 2 · ' + NAMES[n - 1];
     $('back').style.display = n > 1 ? '' : 'none';
-    $('next').textContent = n < 3 ? 'Next' : 'Show my FIRE number';
+    $('next').textContent = n < 2 ? 'Next' : 'Show my FIRE number';
     err(''); window.scrollTo(0, 0);
   }
   function err(t, el) {
@@ -321,40 +397,32 @@
     return false;
   }
   function num(i) { var v = $(i).value.trim(); return v === '' ? NaN : Number(v.replace(/,/g, '')); }
+  function blank(i) { return $(i).value.trim() === ''; }
+  function mobileGiven() { var m = $('mobile').value.trim(); return !!m && m.replace(/\D/g, '') !== cur.replace(/\D/g, ''); }
 
   function check(n) {
     if (n === 1) {
       var nm = $('name').value.trim().replace(/\s+/g, ' ');
       if (nm.length < 2) return err('Please enter your name.', $('name'));
-      var mob = tidy(); if (!mob.ok) return err(mob.msg, $('mobile'));
+      if (mobileGiven()) { var mob = tidy(); if (!mob.ok) return err(mob.msg + ' Or leave it empty.', $('mobile')); }
       var em = $('email').value.trim(); if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return err('That email does not look right. Leave it empty if you prefer.', $('email'));
-      var age = num('age'); if (!(age >= 18 && age <= 70)) return err('Please enter your age, between 18 and 70.', $('age'));
-      var dp = num('deps'); if (!(dp >= 0 && dp <= 15) || dp % 1) return err('Please enter how many people depend on you (0 if none).', $('deps'));
-    } else if (n === 2) {
-      var inc = num('income'); if (!(inc > 0)) return err('Please enter your monthly income.', $('income'));
-      var ex = num('expense'); if (!(ex > 0)) return err('Please enter your monthly expenses.', $('expense'));
-      var emi = num('emi'); if (!(emi >= 0)) return err('Please enter the EMI amount, or 0 if none.', $('emi'));
-      if (emi > ex) return err('The EMI is part of your expenses, so it cannot be more than them.', $('emi'));
-      if (!(num('invest') >= 0)) return err('Please enter your existing investments, or 0 if none.', $('invest'));
-      if (!(num('sip') >= 0)) return err('Please enter what you add every month, or 0 if none.', $('sip'));
-      if (!(num('other') >= 0)) return err('Please enter the expected pension or rent, or 0 if none.', $('other'));
-      var big = ['income', 'expense', 'emi', 'invest', 'sip', 'other'].filter(function (k) { return num(k) > 1e10; })[0];
-      if (big) return err('That amount looks too large. Please check it.', $(big));
+      if (!blank('age')) { var age = num('age'); if (!(age >= 18 && age <= 70)) return err('Please enter an age between 18 and 70, or leave it empty.', $('age')); }
     } else {
-      var age2 = num('age'), ret = num('ret'), plan = Number($('plan').value);
-      if (!(ret > age2 && ret <= 80)) return err('Retirement age must be after your current age (' + age2 + '), and at most 80.', $('ret'));
-      if (plan - ret < 5) return err('Please plan until a later age than ' + (ret + 4) + '.', $('plan'));
-      var miss = ['life', 'style', 'health', 'term', 'home'].filter(function (k) { return !$(k).value; })[0];
-      if (miss) return err('Please answer this question.', $(miss));
+      var ex = num('expense'); if (!(ex > 0)) return err('Please enter your monthly family expenses. It is the one number we need to work out your FIRE number.', $('expense'));
+      var ks = ['income', 'emi', 'invest', 'sip'];
+      for (var k = 0; k < ks.length; k++) if (!blank(ks[k]) && !(num(ks[k]) >= 0 && num(ks[k]) <= 1e10)) return err('Please check this amount, or leave it empty.', $(ks[k]));
+      if (!blank('emi') && num('emi') > ex) return err('These expenses are part of your total expenses, so they cannot be more than them.', $('emi'));
+      var age2 = blank('age') ? 35 : num('age');
+      if (!blank('ret') && !(num('ret') > age2 && num('ret') <= 80)) return err('Retirement age must be after your age (' + age2 + ') and at most 80, or leave it empty.', $('ret'));
     }
     return true;
   }
   function gather() {
+    var z = function (k) { return blank(k) ? 0 : num(k); };
     return {
-      name: $('name').value.trim().replace(/\s+/g, ' '), mobile: $('mobile').value.trim(), country: sel.value, email: $('email').value.trim(),
-      age: num('age'), deps: num('deps'), income: num('income'), expense: num('expense'), emi: num('emi'), invest: num('invest'), sip: num('sip'), other: num('other'),
-      ret: num('ret'), plan: Number($('plan').value), life: Number($('life').value), style: $('style').value,
-      health: $('health').value, term: $('term').value, home: $('home').value, callMe: $('callme').checked
+      name: $('name').value.trim().replace(/\s+/g, ' '), mobile: mobileGiven() ? $('mobile').value.trim() : '', country: sel.value, email: $('email').value.trim(),
+      ageGiven: !blank('age'), age: blank('age') ? 35 : num('age'), income: z('income'), expense: num('expense'), emi: z('emi'), invest: z('invest'), sip: z('sip'),
+      ret: blank('ret') ? 60 : num('ret'), life: $('life').value, health: $('health').value, deps: Number($('deps').value), debt: $('debt').value
     };
   }
 
@@ -362,53 +430,124 @@
   $('f').addEventListener('submit', function (e) {
     e.preventDefault();
     if (!check(step)) return;
-    if (step < 3) { show(step + 1); return; }
+    if (step < 2) { show(step + 1); return; }
     var inp = gather(), r = calc(inp);
     render(inp, r);
     submit(inp, r);
   });
-  $('again').addEventListener('click', function () { $('res').style.display = 'none'; $('formCard').style.display = ''; show(1); });
+  $('again').addEventListener('click', function () { document.body.classList.remove('wide'); $('res').style.display = 'none'; $('formCard').style.display = ''; show(1); });
 
   // ── The result screen ──
+  var LIFE = { frugal: 'Frugal', same: 'Same', higher: 'Higher' };
   function render(i, r) {
     var first = i.name.split(' ')[0]; first = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
     $('formCard').style.display = 'none'; $('res').style.display = 'block'; window.scrollTo(0, 0);
     $('hHello').textContent = first + ', your FIRE number is';
-    if (r.baseYear <= 0) {
-      $('hNum').textContent = 'Already covered'; $('hSub').textContent = 'Your expected pension or rent covers your spending after retirement.';
-    } else {
-      $('hNum').textContent = inr(r.fireNo);
-      $('hSub').textContent = 'About ' + inr(r.todayMoney) + ' in today\'s money, for retiring at ' + i.ret + ' and planning till ' + i.plan + '.';
-    }
-    $('tAge').textContent = r.fireAge ? 'Age ' + r.fireAge : 'After ' + A.maxFireAge;
-    var short = r.proj < r.fireNo;
-    $('tSip').textContent = short ? inr(r.sipReq) + ' / month' : 'On track';
-    $('tSipL').textContent = short ? 'Monthly investing needed now (rising 5% a year)' : 'No extra investing needed';
-    $('tProj').textContent = inr(r.proj);
-    $('tProjL').textContent = 'Your pot at ' + i.ret + ' if you carry on';
-    $('tSpend').textContent = inr(r.spendThen);
-    $('readyL').textContent = r.ready >= 100 ? 'You are on track for retiring at ' + i.ret : 'Your plan covers ' + Math.round(r.ready) + '% of the number for retiring at ' + i.ret;
-    $('readyBar').style.width = Math.max(2, Math.round(r.ready)) + '%';
-    $('readyBar').style.background = r.ready >= 100 ? 'var(--green)' : r.ready >= 60 ? 'var(--amber)' : 'var(--red)';
-    $('flav').innerHTML = '<div><span>Lean</span><b>' + inr(r.lean) + '</b></div><div class="me"><span>Your plan</span><b>' + inr(r.fireNo) + '</b></div><div><span>Fat</span><b>' + inr(r.fat) + '</b></div>';
-    chart(r, i);
+    $('hNum').textContent = r.fireNo > 0 ? inr(r.fireNo) : 'Rs. 0';
+    $('hSub').textContent = 'To retire at ' + i.ret + ' and keep your ' + LIFE[i.life].toLowerCase() + ' lifestyle till age ' + A.plan + '. It includes Rs. 25 lakh kept aside for health.';
+    $('tPost').textContent = inr(r.monthlyAtRet) + ' / month';
+    $('tYears').textContent = r.retireYears + ' years';
+    $('tYearsL').textContent = 'Retirement years to plan for (age ' + i.ret + ' to ' + A.plan + ')';
+    $('tileAge').style.display = $('tileSip').style.display = r.has ? '' : 'none';
+    if (r.has) {
+      $('tAge').textContent = r.fireAge ? 'Age ' + r.fireAge : 'After ' + A.maxFireAge;
+      var short = r.proj < r.fireNo;
+      $('tSip').textContent = short ? inr(r.sipReq) + ' / month' : 'On track';
+      $('tSipL').textContent = short ? 'Monthly saving needed from now' : 'No extra saving needed';
+      $('track').style.display = '';
+      $('readyL').textContent = r.ready >= 100 ? 'Your savings are on track for retiring at ' + i.ret : 'Your savings cover ' + Math.round(r.ready) + '% of the number for retiring at ' + i.ret;
+      $('readyBar').style.width = Math.max(2, Math.round(r.ready)) + '%';
+      $('readyBar').style.background = r.ready >= 100 ? 'var(--green)' : r.ready >= 60 ? 'var(--amber)' : 'var(--red)';
+    } else $('track').style.display = 'none';
+    renderTypes(r); buildReport(i, r);
+    document.body.classList.add('wide');
+    $('flav').innerHTML = ['frugal', 'same', 'higher'].map(function (k) { return '<div' + (k === i.life ? ' class="me"' : '') + '><span>' + LIFE[k] + '</span><b>' + inr(r.byLife[k]) + '</b></div>'; }).join('');
+    $('chartCard').style.display = r.has ? '' : 'none'; if (r.has) chart(r, i);
     flags(i, r);
     var rows = [
-      ['Inflation (general, medical share ' + Math.round(A.medShare * 100) + '% at ' + Math.round(A.medInflation * 100) + '%)', pct(r.infl * 100)],
-      ['Return on your investments until retirement', pct(r.rate * 100)],
-      ['Yearly rise in your monthly investing', pct(A.stepUp * 100)],
-      ['Years to retirement / in retirement', r.years + ' / ' + r.retireYears],
-      ['Safe withdrawal rate used', pct(r.swr * 100)],
-      ['Spending after retiring (today\'s money, yearly)', inr(r.baseYear)]
+      ['Expense today, less expenses that stop', inr(Math.max(0, i.expense - i.emi)) + ' / month'],
+      ['Years to retirement', String(r.years)],
+      ['Inflation until retirement' + (i.life === 'higher' ? ' (plus 1% for higher lifestyle)' : ''), pct(r.g * 100) + ' a year'],
+      ['Dependants: extra expense every year', pct((A.depLoad[i.deps] || 0) * 100)],
+      ['Monthly expense at retirement', inr(r.monthlyAtRet)],
+      ['Inflation after retirement', pct(A.inflPost * 100) + ' a year'],
+      ['Return after retirement', pct(A.retPost * 100) + ' a year'],
+      ['Money needed for ' + r.retireYears + ' years', inr(r.annuity)],
+      ['Health emergency fund added', inr(A.earmark)],
+      ['FIRE number', inr(r.fireNo)]
     ];
-    $('as').innerHTML = rows.map(function (x) { return '<tr><td>' + x[0] + '</td><td>' + x[1] + '</td></tr>'; }).join('');
+    if (r.has) rows.splice(5, 0, ['Return on your savings until retirement', pct(A.retPre * 100) + ' a year']);
+    $('as').className = 'as kv'; $('as').innerHTML = rows.map(function (x) { return '<tr><td>' + x[0] + '</td><td>' + x[1] + '</td></tr>'; }).join('');
   }
+  var TYPES = [
+    ['Lean FIRE', 'Financial independence with a smaller corpus, by keeping expenses and lifestyle costs low.', 'People comfortable with a minimalist lifestyle', 'lean'],
+    ['Traditional FIRE', 'A sufficient investment corpus to cover living expenses so you can leave full-time work completely.', 'People seeking complete financial independence', 'trad'],
+    ['Fat FIRE', 'A larger corpus to keep a more comfortable lifestyle without major spending cuts after retirement.', 'High-income earners seeking a premium lifestyle', 'fat'],
+    ['Barista FIRE', 'Enough investments to cover a part of the expenses while you continue part-time work for extra income.', 'Those who want to cut down full-time work without stopping completely', 'bar'],
+    ['Coast FIRE', 'Invest enough early on so your existing corpus can grow to the retirement target by itself over time.', 'Younger investors with a long investment horizon', 'coast']
+  ];
+  function typeValues(n) {
+    return { lean: n * A.lean, trad: n, fat: n * A.fat, bar: n > 0 ? Math.min(n, Math.max(n * A.barista, A.baristaFloor)) : 0 };
+  }
+  function renderTypes(r) {
+    var v = typeValues(r.fireNo);
+    $('types').innerHTML = '<thead><tr><th>FIRE type</th><th>What it means</th><th>Best suited for</th><th class="amt">Corpus required</th></tr></thead><tbody>' + TYPES.map(function (t) {
+      var amt = t[3] === 'coast' ? '<span class="na">Not calculated here</span>' : inr(v[t[3]]);
+      return '<tr' + (t[3] === 'trad' ? ' class="me"' : '') + '><td class="nm">' + t[0] + (t[3] === 'trad' ? '<small>Your calculated number</small>' : '') + '</td><td data-l="What it means">' + t[1] + '</td><td data-l="Best suited for">' + t[2] + '</td><td class="amt" data-l="Corpus required">' + amt + '</td></tr>';
+    }).join('') + '</tbody>';
+    $('typesNote').textContent = 'Traditional is your calculated FIRE number. Fat: 20% more. Lean: 20% less. Barista: 50% less, but not below Rs. 1.5 Cr (150 lakh), whichever is higher.';
+  }
+
+  // ── One-page PDF report: built from the same numbers as the screen; "Save as PDF" prints only this (A4) ──
+  var FIRM = { addr: '8th Floor, Center A, Alapatt Heritage Building, MG Road, Ernakulam, Kerala', mob: '9943697216', mobShow: '99436 97216', mail: 'arjun.wealthmatrix@gmail.com', web: 'www.wealthmatrix.in' };
+  var lastRep = null;
+  function repDate() { try { return new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }); } catch (e) { return new Date().toDateString(); } }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function buildReport(i, r) {
+    var v = typeValues(r.fireNo), date = repDate(), has = function (x) { return x > 0; };
+    var kv = [];
+    kv.push(['Age', i.ageGiven ? String(i.age) : 'Not given']);
+    kv.push(['Retire at', String(i.ret)]);
+    kv.push(['Monthly expenses today', inr(i.expense)]);
+    if (has(i.emi)) kv.push(['Monthly EMIs, fees ending', inr(i.emi)]);
+    kv.push(['Lifestyle after retiring', LIFE[i.life]]);
+    kv.push(['Health insurance', i.health === 'N' ? 'No' : 'Yes']);
+    kv.push(['Dependants', String(i.deps)]);
+    kv.push(['Debts after retirement', i.debt === 'Y' ? 'Yes' : 'No']);
+    if (has(i.income)) kv.push(['Monthly family income', inr(i.income)]);
+    if (has(i.invest)) kv.push(['Savings so far', inr(i.invest)]);
+    if (has(i.sip)) kv.push(['Monthly investing', inr(i.sip)]);
+    var per = Math.ceil(kv.length / 3), col = function (a) { return '<table>' + a.map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</table>'; };
+    var tiles = [['Monthly expense at retirement', inr(r.monthlyAtRet)], ['Years to plan for (age ' + i.ret + ' to ' + A.plan + ')', r.retireYears + ' years']];
+    if (r.has) { tiles.push(['Earliest age you can reach it', r.fireAge ? 'Age ' + r.fireAge : 'After ' + A.maxFireAge]); tiles.push(r.proj < r.fireNo ? ['Monthly saving needed', inr(r.sipReq)] : ['Monthly saving', 'On track']); }
+    else { tiles.push(['Inflation until retirement', pct(r.g * 100) + ' a year']); tiles.push(['Return after retirement', pct(A.retPost * 100) + ' a year']); }
+    var notes = remarks(i, r).map(function (m) { return '<p>' + esc(m) + '</p>'; }).join('');
+    $('rep').innerHTML =
+      '<div class="rh"><img src="wm-logo.png" alt="Wealth Matrix"><div class="t"><b>Know Your FIRE Number</b><span>Prepared for ' + esc(i.name) + ' &middot; ' + date + '</span></div></div>' +
+      '<div class="hero"><div class="k">Your FIRE number</div><div class="n">' + (r.fireNo > 0 ? inr(r.fireNo) : 'Rs. 0') + '</div><div class="s">To retire at ' + i.ret + ' and keep your ' + LIFE[i.life].toLowerCase() + ' lifestyle till age ' + A.plan + '. Includes Rs. 25 lakh kept aside for health.</div></div>' +
+      '<div class="tl">' + tiles.map(function (t) { return '<div><b>' + esc(t[1]) + '</b><span>' + esc(t[0]) + '</span></div>'; }).join('') + '</div>' +
+      '<h3>Your details</h3><div class="kv2">' + col(kv.slice(0, per)) + col(kv.slice(per, per * 2)) + col(kv.slice(per * 2)) + '</div>' +
+      '<h3>Types of FIRE and the corpus you need</h3><table class="ty"><thead><tr><th>FIRE type</th><th>What it means</th><th>Best suited for</th><th class="a">Corpus required</th></tr></thead><tbody>' +
+      TYPES.map(function (t) { return '<tr' + (t[3] === 'trad' ? ' class="me"' : '') + '><td class="nm">' + t[0] + (t[3] === 'trad' ? '<br><span class="na" style="color:#B8863B">Your number</span>' : '') + '</td><td>' + t[1] + '</td><td>' + t[2] + '</td><td class="a">' + (t[3] === 'coast' ? '<span class="na">Not calculated here</span>' : inr(v[t[3]])) + '</td></tr>'; }).join('') +
+      '</tbody></table><p class="nt">Traditional is your calculated number. Fat: 20% more. Lean: 20% less. Barista: 50% less, but not below Rs. 1.5 Cr. Assumed: inflation ' + pct(A.inflPre * 100) + ' till retirement and ' + pct(A.inflPost * 100) + ' after; returns ' + pct(A.retPre * 100) + ' before and ' + pct(A.retPost * 100) + ' after retirement.</p>' +
+      (notes ? '<div class="al">' + notes + '</div>' : '') +
+      '<div class="cta"><div><b>Ready to turn this number into a plan?</b><span>Book a FIRE review call with your Personal Finance Professional (PFP) and keep this report handy.</span></div><div class="c"><span>Call or WhatsApp</span><strong>' + FIRM.mobShow + '</strong></div></div>' +
+      '<div class="ft"><b>Wealth Matrix</b><br>' + FIRM.addr + '<br>Mobile ' + FIRM.mobShow + ' &nbsp;|&nbsp; ' + FIRM.mail + ' &nbsp;|&nbsp; ' + FIRM.web + '<div class="d">ARN-309716 | Mutual Fund and SIF Distributor<br>Consult your Personal Finance Professional (PFP) before taking a decision.</div></div>';
+    lastRep = { name: i.name, date: date };
+  }
+  $('pdf').addEventListener('click', function () {
+    if (!lastRep) return;
+    var t = document.title; document.title = 'FIRE Report - ' + lastRep.name + ' - ' + lastRep.date;
+    var back = function () { document.title = t; window.removeEventListener('afterprint', back); };
+    window.addEventListener('afterprint', back); setTimeout(back, 60000);
+    window.print();
+  });
   function chart(r, i) {
     var W = 320, H = 150, L = 8, B = 20, T = 10, c = r.curve, maxY = Math.max(r.fireNo, c[c.length - 1][1]) * 1.08 || 1;
     var x = function (k) { return L + (W - L - 8) * (c.length > 1 ? k / (c.length - 1) : 0); }, y = function (v) { return T + (H - T - B) * (1 - v / maxY); };
     var pts = c.map(function (p, k) { return x(k).toFixed(1) + ',' + y(p[1]).toFixed(1); }).join(' ');
     var area = L + ',' + (H - B) + ' ' + pts + ' ' + x(c.length - 1).toFixed(1) + ',' + (H - B);
-    $('chart').innerHTML = '<svg class="ch" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Your pot growing until retirement, against the FIRE number">' +
+    $('chart').innerHTML = '<svg class="ch" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Your savings growing until retirement, against the FIRE number">' +
       '<polygon points="' + area + '" fill="var(--green)" opacity=".15"/>' +
       '<polyline points="' + pts + '" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linejoin="round"/>' +
       '<line x1="' + L + '" x2="' + (W - 8) + '" y1="' + y(r.fireNo).toFixed(1) + '" y2="' + y(r.fireNo).toFixed(1) + '" stroke="var(--gold)" stroke-width="1.6" stroke-dasharray="5 4"/>' +
@@ -416,21 +555,29 @@
       '<text x="' + L + '" y="' + (H - 5) + '" font-size="9" fill="var(--soft)">Age ' + i.age + '</text>' +
       '<text x="' + (W - 8) + '" y="' + (H - 5) + '" text-anchor="end" font-size="9" fill="var(--soft)">Age ' + i.ret + ': ' + inr(r.proj) + '</text></svg>';
   }
+  function remarks(i, r) {                                  // the same notes go to the sheet, so you see them when you call
+    var m = [];
+    if (i.health === 'N') m.push('No health insurance: take a health cover immediately, in your own name and not only the one from your employer.');
+    if (i.debt === 'Y') m.push('Debts running after retirement: try to bring them to zero by the time you retire.');
+    return m;
+  }
   function flags(i, r) {
     var f = [], add = function (k, m) { f.push('<li class="' + k + '"><span class="d"></span><span>' + m + '</span></li>'); };
-    if (r.ready >= 100) add('ok', 'At your current pace you reach the number by ' + i.ret + '. Keep it going and review once a year.');
-    else add('warn', 'At your current pace you reach about ' + Math.round(r.ready) + '% of the number by ' + i.ret + '. ' + (r.fireAge ? 'You could retire at ' + r.fireAge + ' instead, or raise your monthly investing.' : 'Raising your monthly investing, or retiring later, closes the gap.'));
-    if (i.health === 'N') add('warn', 'No health insurance: one hospital stay can use up years of savings, and medical costs are rising 11.5 to 14% a year. A family floater plus a top-up is the first thing to fix.');
-    if (i.term === 'N' && i.deps > 0) add('warn', 'You have ' + i.deps + ' dependent' + (i.deps > 1 ? 's' : '') + ' and no term life cover. A common rule is about 15 times your yearly income, roughly ' + inr(i.income * 12 * 15) + '.');
-    else if (i.term === 'N') add('info', 'No term life cover. It matters most once someone depends on your income.');
-    var months = 6 + Math.min(3, i.deps);
-    add('info', 'Keep an emergency fund of about ' + inr(i.expense * months) + ' (' + months + ' months of expenses) apart from this plan.');
-    if (r.saveRate < 0.2) add('warn', 'You save about ' + Math.max(0, Math.round(r.saveRate * 100)) + '% of your income. Most FIRE plans need 30 to 50%.');
-    else add('ok', 'You save about ' + Math.round(r.saveRate * 100) + '% of your income, a strong base.');
-    if (i.ret < 45) add('info', 'Retiring before 45 means over ' + r.retireYears + ' years of withdrawals. We used a cautious ' + pct(r.swr * 100) + ' withdrawal rate for that.');
-    if (i.plan <= 85) add('info', 'You planned only till ' + i.plan + '. Many Indians now live well beyond 85, so 90 is a safer choice.');
-    if (i.home === 'N') add('info', 'You pay rent today. Rent keeps rising after retirement, so owning a home before you retire can lower the number you need.');
-    if (i.emi > 0) add('ok', 'Your EMI of ' + inr(i.emi) + ' a month is left out of retirement spending, as it ends before you retire.');
+    if (i.health === 'N') add('warn', 'You have no health insurance. <b>Take a health cover immediately</b>, in your own name and not only the one from your employer, which ends when the job does. We have still kept Rs. 25 lakh aside in your number for health needs.');
+    else add('ok', 'You have health insurance. Rs. 25 lakh is kept aside in your number as an emergency health fund.');
+    if (i.debt === 'Y') add('warn', 'You will still have debts after you retire. <b>Try to bring them to zero</b> by the time you retire. Every EMI left adds to the corpus you need.');
+    if (i.deps > 0) add('info', i.deps + (i.deps > 1 ? ' dependants' : ' dependant') + ' after you retire adds ' + (A.depLoad[i.deps] * 100) + '% to your expenses every year of retirement.');
+    if (r.has) {
+      if (r.ready >= 100) add('ok', 'At your current pace you reach the number by ' + i.ret + '. Keep going and review once a year.');
+      else add('warn', 'At your current pace your savings reach about ' + Math.round(r.ready) + '% of the number by ' + i.ret + '. ' + (r.fireAge ? 'You could retire at ' + r.fireAge + ' instead, or raise your monthly saving.' : 'Saving more every month, or retiring later, closes the gap.'));
+    } else add('info', 'Add your savings so far and what you save every month, in "Change my answers", to see how close you are and the earliest age you can retire.');
+    if (!i.ageGiven) add('info', 'You did not enter your age, so we took 35. Your result is more accurate with your real age.');
+    if (i.income > 0) {
+      if (r.saveRate < 0.2) add('warn', 'Your family saves about ' + Math.max(0, Math.round(r.saveRate * 100)) + '% of its income. Most FIRE plans need 30 to 50%.');
+      else add('ok', 'Your family saves about ' + Math.round(r.saveRate * 100) + '% of its income, a strong base.');
+    }
+    if (i.emi > 0) add('ok', 'Expenses of ' + inr(i.emi) + ' a month that stop before you retire are left out of your retirement spending.');
+    if (i.ret < 45) add('info', 'Retiring before 45 means ' + r.retireYears + ' years of withdrawals, so the number is large.');
     $('flags').innerHTML = f.join('');
   }
 
@@ -441,13 +588,13 @@
   }
   function submit(i, r) {
     if (!id) { setSave('This page was opened without its webinar link, so your answers were not sent.'); return; }
-    var mob = tidy();
+    var mob = i.mobile ? tidy() : { value: '' };
     lastBody = {
-      action: 'fire', id: id, name: i.name, mobile: mob.value || i.mobile, country: i.country, email: i.email, website: $('website').value, took: Date.now() - opened, flushLater: true,
-      age: i.age, deps: i.deps, income: i.income, expense: i.expense, emi: i.emi, invest: i.invest, sip: i.sip, other: i.other,
-      ret: i.ret, plan: i.plan, life: i.life, style: i.style, health: i.health, term: i.term, home: i.home, callMe: i.callMe,
-      res: { fireNo: Math.round(r.fireNo), fireAge: r.fireAge || 0, ready: Math.round(r.ready), sipReq: Math.round(r.sipReq), proj: Math.round(r.proj), spend: Math.round(r.spendThen) }
+      action: 'fire', id: id, name: i.name, mobile: mob.value || '', country: i.country, email: i.email, website: $('website').value, took: Date.now() - opened, flushLater: true,
+      income: i.income, expense: i.expense, emi: i.emi, invest: i.invest, sip: i.sip, ret: i.ret, life: i.life, health: i.health, deps: i.deps, debt: i.debt, notes: remarks(i, r).join(' '),
+      res: { fireNo: Math.round(r.fireNo), fireAge: r.fireAge || 0, ready: r.has ? Math.round(r.ready) : 0, sipReq: r.has ? Math.round(r.sipReq) : 0, proj: Math.round(r.proj), post: Math.round(r.monthlyAtRet) }
     };
+    if (i.ageGiven) lastBody.age = i.age;
     setSave('Saving your answers…'); send(lastBody, 0);
   }
   function send(body, n) {
@@ -457,7 +604,7 @@
       .then(function (x) { return x.text(); })
       .then(function (txt) {
         var d; try { d = JSON.parse(txt); } catch (e) { throw { retry: true }; }
-        if (d && d.success) { saved = true; setSave('Your answers are saved with Wealth Matrix.'); try { fetch(WEB_APP_URL + '?action=flush', { method: 'GET', mode: 'no-cors', credentials: 'omit', keepalive: true }).catch(function () {}); } catch (e) {} return; }
+        if (d && d.success) { setSave('Your answers are saved with Wealth Matrix.'); try { fetch(WEB_APP_URL + '?action=flush', { method: 'GET', mode: 'no-cors', credentials: 'omit', keepalive: true }).catch(function () {}); } catch (e) {} return; }
         if (d && d.busy) throw { retry: true };
         throw { msg: (d && d.error) || 'Your answers could not be saved.' };
       })

@@ -1029,7 +1029,7 @@
 <script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = '6.9';
+  const APP_VERSION = '6.10';
   const TZ = 'Asia/Kolkata';
   const PAGE_SIZE = 80;                       // participants drawn at once; "Show more" adds the next batch
   const PREFETCH_BUDGET = 4000;               // background-download at most this many participants (upcoming + most recent webinars first);
@@ -3435,16 +3435,22 @@
     if (!arr) return null;
     if (fireIdxMemo && fireIdxMemo.arr === arr) return fireIdxMemo;
     const m = {}, e = {};
-    arr.forEach(f => { const k = last10(f.mobile), em = String(f.email || '').trim().toLowerCase(); if (k) m[k] = f; if (em) e[em] = f; });
-    return (fireIdxMemo = { arr, m, e });
+    const n = {};
+    arr.forEach(f => {
+      if (f.match === 'Auto' || f.match === 'Manual') { const k = last10(f.regMobile), nm = normNm(f.regName); if (k) m[k] = f; else if (nm) n[nm] = f; return; }      // mapped: the registrant it belongs to
+      if (f.match === 'Check' || f.match === 'Walk-in') return;                                                             // not mapped yet / not a registrant: no chip on anyone's row
+      const k = last10(f.mobile), em = String(f.email || '').trim().toLowerCase(); if (k) m[k] = f; if (em) e[em] = f;       // an older entry (before mapping existed): by contact
+    });
+    return (fireIdxMemo = { arr, m, e, n });
   }
+  const normNm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9\u00c0-\uffff\s]/g, ' ').replace(/\s+/g, ' ').trim();
   function fireFor(a, evId){
     const ix = fireIdx(evId); if (!ix) return null;
-    return ix.m[last10(a.mobile)] || ix.e[String(a.email || '').trim().toLowerCase()] || null;
+    return ix.m[last10(a.mobile)] || ix.e[String(a.email || '').trim().toLowerCase()] || ix.n[normNm(a.name)] || null;
   }
   function fireChip(fe, ev){
     const b = document.createElement('button'); b.type = 'button'; b.className = 'fire-chip' + (fe.callMe ? ' call' : '');
-    b.textContent = 'FIRE ' + rupees(fe.fireNo).replace('Rs. ', 'Rs.') + ' · ' + fe.ready + '% on track' + (fe.callMe ? ' · wants a call' : '');
+    b.textContent = fe.fireNo ? 'FIRE ' + rupees(fe.fireNo).replace('Rs. ', 'Rs.') + ' · ' + fe.ready + '% on track' + (fe.callMe ? ' · wants a call' : '') : 'FIRE details saved';
     b.setAttribute('aria-label', 'FIRE calculator result for ' + (fe.name || 'this person'));
     b.addEventListener('click', (e) => { e.stopPropagation(); openFire(fe, ev); });
     return b;
@@ -3467,13 +3473,14 @@
     const cached = loadAtt(ev.id), reg = cached ? cached.attendees : [];
     const regM = {}, regE = {};
     reg.forEach(a => { const k = last10(a.mobile), em = String(a.email || '').trim().toLowerCase(); if (k) regM[k] = 1; if (em) regE[em] = 1; });
-    const onList = (f) => !!(regM[last10(f.mobile)] || regE[String(f.email || '').trim().toLowerCase()]);
+    const onList = (f) => f.match === 'Auto' || f.match === 'Manual' || (f.match !== 'Check' && f.match !== 'Walk-in' && !!(regM[last10(f.mobile)] || regE[String(f.email || '').trim().toLowerCase()]));
     const off = cached ? all.filter(f => !onList(f)) : all;
-    const shown = fireShowAll ? all : off, calls = all.filter(f => f.callMe).length;
+    const needMap = all.filter(f => f.match === 'Check').length;
+    const shown = (fireShowAll ? all : off).slice().sort((a, b) => (b.match === 'Check') - (a.match === 'Check')), calls = all.filter(f => f.callMe).length;
     box.innerHTML = '';
     box.appendChild(fnEl('h4', null, 'Know your FIRE number (' + all.length + ')'));
     const sub = fnEl('p', 'visit-sub'); sub.style.cssText = 'margin:0 0 6px; text-align:left;';
-    sub.textContent = all.length + (all.length === 1 ? ' person has' : ' people have') + ' used the calculator' + (cached ? ' · ' + (all.length - off.length) + ' on your registration list (shown on their rows), ' + off.length + ' not' : '') + (calls ? ' · ' + calls + ' asked for a call' : '') + '.';
+    sub.textContent = all.length + (all.length === 1 ? ' person has' : ' people have') + ' used the calculator' + (cached ? ' · ' + (all.length - off.length) + ' on your registration list (shown on their rows), ' + off.length + ' not' : '') + (needMap ? ' · ' + needMap + ' need mapping' : '') + (calls ? ' · ' + calls + ' asked for a call' : '') + '.';
     box.appendChild(sub);
     if (!shown.length) box.appendChild(fnEl('p', 'visit-sub', 'Everyone who used it is already on your list. Look for the gold FIRE chip on their rows.'));
     shown.forEach(f => {
@@ -3481,6 +3488,12 @@
       const who = fnEl('div'); who.append(fnEl('div', 'nm', f.name || f.email || f.mobile));
       const sb = [f.mobile, f.email, f.country].filter(Boolean).join(' · '); if (sb) who.append(fnEl('div', 'sub', sb));
       who.appendChild(fireChip(f, ev));
+      if (f.match === 'Check') {
+        who.appendChild(fnEl('div', 'sub', 'Name or number does not match anyone who registered \u2014 map it so there is one row per person.'));
+        const mb = fnEl('button', 'ghost-btn small fire-map', 'Map to registrant'); mb.type = 'button'; mb.style.marginTop = '6px';
+        mb.addEventListener('click', (e) => { e.stopPropagation(); openFireMap(f, ev); }); who.appendChild(mb);
+      } else if (f.match === 'Manual' || f.match === 'Auto') who.appendChild(fnEl('div', 'sub', 'Registered as ' + (f.regName || '')));
+      else if (f.match === 'Walk-in') who.appendChild(fnEl('div', 'sub', 'Not a registrant (walk-in)'));
       const act = fnEl('div', 'actions'), ph = phoneLinks(f.mobile, f.country);
       if (ph) {
         act.appendChild(actionLink('call', 'tel:' + ph.tel, 'Call ' + (f.name || ''), false));
@@ -3508,18 +3521,43 @@
     const sec = (h) => { const r = t.insertRow(); r.className = 'sec'; const c = r.insertCell(); c.colSpan = 2; c.textContent = h; };
     const add = (k, v) => { const r = t.insertRow(); r.insertCell().textContent = k; r.insertCell().textContent = v; };
     const yn = (v) => v === 'Yes' ? 'Yes' : 'No';
+    const has = (v) => v !== '' && v !== null && v !== undefined && v !== 0;
     sec('Result');
     add('FIRE number', rupees(f.fireNo)); add('Earliest FIRE age', f.fireAge ? 'Age ' + f.fireAge : 'After 75'); add('On track for retiring at ' + f.ret, f.ready + '%');
-    add('Monthly investing needed', f.sipReq ? rupees(f.sipReq) : 'On track'); add('Pot at retirement (at this pace)', rupees(f.proj));
+    add('Monthly saving needed', f.sipReq ? rupees(f.sipReq) : 'On track'); add('Pot at retirement (at this pace)', rupees(f.proj));
+    add('Monthly expense at retirement', f.post ? rupees(f.post) : '');
     sec('What they entered');
-    add('Age / dependents', f.age + ' / ' + f.deps); add('Monthly income', rupees(f.income)); add('Monthly expenses', rupees(f.expense)); add('EMIs ending before retirement', rupees(f.emi));
-    add('Existing investments', rupees(f.invest)); add('Investing every month', rupees(f.sip)); add('Pension or rent after retiring', rupees(f.other));
-    add('Retire at / plan till', f.ret + ' / ' + f.plan); add('Spending after retiring', f.life + '% of today'); add('Investing style', f.style);
-    add('Health cover', yn(f.health)); add('Term cover', yn(f.term)); add('Owns home', yn(f.home)); add('Asked for a call', f.callMe ? 'Yes' : 'No');
-    sec('Record'); add('Used the calculator', f.tries + (f.tries === 1 ? ' time' : ' times')); add('Last updated', f.updated ? fmtIST(f.updated) : ''); if (f.crm) add('CRM', f.crm);
+    add('Age', has(f.age) ? String(f.age) : 'not given (35 assumed)');
+    add('Family expenses / month', rupees(f.expense)); if (has(f.emi)) add('Stops before retirement (EMIs, fees)', rupees(f.emi)); add('Retire at', String(f.ret || 60));
+    if (f.life) add('Lifestyle after retiring', f.life); if (f.health) add('Health insurance', f.health); add('Dependants', String(f.deps || 0)); if (f.debt) add('Debts after retirement', f.debt);
+    if (has(f.income)) add('Family income / month', rupees(f.income)); if (has(f.invest)) add('Savings so far', rupees(f.invest)); if (has(f.sip)) add('Saved every month', rupees(f.sip));
+    if (f.notes) add('Remarks', f.notes);
+    sec('Record'); if (f.match) add('Registration match', f.match === 'Walk-in' ? 'Not a registrant (walk-in)' : f.match + (f.regName ? ' \u2014 ' + f.regName : '')); add('Used the calculator', f.tries + (f.tries === 1 ? ' time' : ' times')); add('Last updated', f.updated ? fmtIST(f.updated) : ''); if (f.crm) add('CRM', f.crm);
     body.appendChild(t);
+    if (f.match) { const cb = fnEl('button', 'ghost-btn small', f.match === 'Check' ? 'Map to registrant' : 'Change mapping'); cb.type = 'button'; cb.style.cssText = 'margin-top:10px;'; cb.addEventListener('click', () => { hideFire(); setTimeout(() => openFireMap(f, ev), 300); }); body.appendChild(cb); }
     $('fireOverlay').classList.remove('hidden');
     requestAnimationFrame(() => requestAnimationFrame(() => $('fireOverlay').classList.add('open')));
+  }
+  /** Map one FIRE entry to the registered participant it really is (or mark it as a walk-in). One row per person; the number goes in their FIRE Number column. */
+  function openFireMap(f, ev){
+    const cached = loadAtt(ev.id), mk = last10(f.mobile), em = String(f.email || '').trim().toLowerCase();
+    const regs = (cached ? cached.attendees : []).slice().sort((a, b) => {
+      const sa = (mk && last10(a.mobile) === mk) || (em && String(a.email || '').toLowerCase() === em) ? 0 : 1, sb = (mk && last10(b.mobile) === mk) || (em && String(b.email || '').toLowerCase() === em) ? 0 : 1;
+      return sa - sb || String(a.name).localeCompare(String(b.name));
+    });
+    const call = async (to, done) => {
+      $('mapError').style.display = 'none';
+      try {
+        const d = await apiPost({ action: 'fireMap', id: ev.id, fireRow: f.row, to }); if (d.error) throw new Error(d.error);
+        hideMap(); await loadFire(ev, true); toast(done);
+      } catch (e) { $('mapError').textContent = e.message || 'Could not save \u2014 nothing was changed.'; $('mapError').style.display = 'block'; }
+    };
+    showMap({
+      title: 'Who is \u201c' + (f.name || f.mobile) + '\u201d?', intro: 'FIRE number ' + rupees(f.fireNo) + '. Tap the registered participant this is \u2014 the number is pasted in their FIRE Number column and no extra row is made.',
+      items: regs, sub: (a) => [a.email, a.mobile].filter(Boolean).join(' \u00b7 '), empty: 'The registration list is not loaded yet \u2014 open Participants once, then try again.',
+      pick: (a) => { if (confirm('Map \u201c' + (f.name || '') + '\u201d to \u201c' + a.name + '\u201d and put the FIRE number against them?')) call(regTo(a), 'FIRE number added against ' + a.name); },
+      extras: [{ label: 'Not a registrant \u2014 walk-in', run: () => call('walkin', 'Marked as a walk-in') }]
+    });
   }
   function hideFire(){ $('fireOverlay').classList.remove('open'); setTimeout(() => $('fireOverlay').classList.add('hidden'), 280); }
   $('closeFireBtn').addEventListener('click', hideFire);
