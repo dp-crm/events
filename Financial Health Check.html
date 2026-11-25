@@ -116,7 +116,7 @@ input:focus,button:focus-visible,.opt:focus-within{outline:3px solid #A9B3DB;out
 <script>
 // pts = points for [Under 30, 30-39, 40-49, 50+]
 // To save leads to a Google Sheet, paste your Apps Script web app URL between the quotes below.
-const LEAD_URL="";
+const LEAD_URL="https://script.google.com/macros/s/AKfycbwdBclJ4UeOwPpx_-c1Z2f35mJPVjjtItu1Iyncwg7MkvLFD3WlXhxvqvB8kd6cprW3PA/exec";
 function sendLead(x){if(!LEAD_URL)return;try{fetch(LEAD_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({id:S.id,name:S.name,email:S.email,phone:S.phone,age:S.age||""},x))})}catch(e){}}
 const Z=[0,0,0,0];
 const Q=[
