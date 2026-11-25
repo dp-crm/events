@@ -261,7 +261,7 @@ function results(){
   return '<div class="row"><h3><span>'+r.q.area+(full?'<span class="tag">Strong</span>':'')+'</span><span class="pts">'+f1(r.p)+' / '+r.q.max+'</span></h3><div class="mini"><i style="width:'+pct+'%;background:'+col+'"></i></div><p class="ans">'+r.pre+': <b>'+r.o[0]+'</b> ('+r.o[1]+')</p><p class="tip">'+msg+'</p></div>';
  }).join("")).join("");
  window._R=R;
- sendLead({status:"Completed",score:R.total,rating:b[0],sections:R.sec.map(x=>x.pc),answers:R.rows.filter(r=>!r.hide).map(r=>r.q.area+": "+r.o[0]).join(" | ")});
+ sendLead({status:"Completed",score:R.total,rating:b[0],sections:R.sec.map(x=>x.pc),qa:Q.map((q,i)=>{const o=q.o[S.ans[i]];return {a:o[0]+(o[1]?" ("+o[1]+")":""),p:R.rows[i].hide?0:R.rows[i].p,max:q.max}})});
 }
 $("redo").onclick=()=>{S.id=null;$("dl").innerHTML="";$("name").value="";$("email").value="";$("ph").value="";$("age").value="";$("arc").style.strokeDashoffset=377;show("s-start")};
 
